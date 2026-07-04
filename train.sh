@@ -41,7 +41,7 @@ BASE_ARGS=(
 
 if [ "$CONTRASTIVE" -eq 1 ]; then
     CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python train.py \
-        --exp_name rodosol_finetune_contrastive_30k \
+        --exp_name contrastiveTRBA \
         "${BASE_ARGS[@]}" \
         --use_contrastive \
         --contrastive_margin  0.5 \
@@ -50,6 +50,6 @@ if [ "$CONTRASTIVE" -eq 1 ]; then
         --contrastive_warmup  1000
 else
     CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python train.py \
-        --exp_name rodosol_finetune_base_30k \
+        --exp_name contrastiveTRBA \
         "${BASE_ARGS[@]}"
 fi
