@@ -20,6 +20,7 @@ from modules.transformation import TPS_SpatialTransformerNetwork
 from modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
 from modules.sequence_modeling import BidirectionalLSTM
 from modules.prediction import Attention
+from modules.contrastive import CharContrastiveHead
 
 
 class Model(nn.Module):
@@ -67,7 +68,33 @@ class Model(nn.Module):
         else:
             raise Exception('Prediction is neither CTC or Attn')
 
-    def forward(self, input, text, is_train=True):
+        """ Contrastive head (optional auxiliary branch) """
+        # Only instantiated when opt.use_contrastive=True.
+        # Fine-tuning: weights of TPS/ResNet/BiLSTM/Attention are loaded from
+        # the pre-trained checkpoint via strict=False; only this head is new.
+        self.use_contrastive = getattr(opt, 'use_contrastive', False)
+        if self.use_contrastive:
+            if opt.Prediction != 'Attn':
+                raise ValueError(
+                    'Contrastive head requires Attention decoder (--Prediction Attn). '
+                    'CTC does not produce per-character hidden states.'
+                )
+            self.contrastive_head = CharContrastiveHead(
+                hidden_size=opt.hidden_size,
+                embedding_dim=getattr(opt, 'contrastive_embedding_dim', 128),
+            )
+
+    def forward(self, input, text, is_train=True, return_contrastive=False):
+        """
+        Parâmetros
+        ----------
+        input              : imagem [B, C, H, W]
+        text               : índices de texto [B, max_length+1] com [GO] em texto[:, 0]
+        is_train           : True para teacher-forcing (treino), False para greedy (inferência)
+        return_contrastive : se True, retorna (prediction, hidden_states) em vez de apenas prediction.
+                             Requer Prediction='Attn' e use_contrastive=True.
+                             Usado pelo train.py para calcular a perda contrastiva.
+        """
         """ Transformation stage """
         if not self.stages['Trans'] == "None":
             input = self.Transformation(input)
@@ -86,7 +113,23 @@ class Model(nn.Module):
         """ Prediction stage """
         if self.stages['Pred'] == 'CTC':
             prediction = self.Prediction(contextual_feature.contiguous())
-        else:
-            prediction = self.Prediction(contextual_feature.contiguous(), text, is_train, batch_max_length=self.opt.batch_max_length)
+            return prediction
 
+        # Attn decoder
+        if return_contrastive and self.use_contrastive:
+            prediction, hidden_states = self.Prediction(
+                contextual_feature.contiguous(),
+                text,
+                is_train,
+                batch_max_length=self.opt.batch_max_length,
+                return_hidden=True,
+            )
+            return prediction, hidden_states
+
+        prediction = self.Prediction(
+            contextual_feature.contiguous(),
+            text,
+            is_train,
+            batch_max_length=self.opt.batch_max_length,
+        )
         return prediction
