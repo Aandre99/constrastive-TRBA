@@ -15,6 +15,7 @@ import numpy as np
 from utils import CTCLabelConverter, CTCLabelConverterForBaiduWarpctc, AttnLabelConverter, Averager
 from dataset import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 from model import Model
+from modules.contrastive import ContrastiveLoss
 from test import validation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -97,8 +98,22 @@ def train(opt):
             criterion = torch.nn.CTCLoss(zero_infinity=True).to(device)
     else:
         criterion = torch.nn.CrossEntropyLoss(ignore_index=0).to(device)  # ignore [GO] token = ignore index 0
+
+    # Perda contrastiva auxiliar (Triplet Loss nos hidden states do decoder)
+    contrastive_criterion = None
+    if getattr(opt, 'use_contrastive', False):
+        contrastive_criterion = ContrastiveLoss(
+            margin=opt.contrastive_margin,
+            mining_type=opt.contrastive_mining,
+        ).to(device)
+        print(f'[*] Contrastive loss habilitada:')
+        print(f'    margin={opt.contrastive_margin}, mining={opt.contrastive_mining}')
+        print(f'    lambda={opt.contrastive_lambda}, warmup={opt.contrastive_warmup} iters')
+        print(f'    embedding_dim={opt.contrastive_embedding_dim}')
+
     # loss averager
     loss_avg = Averager()
+    contrastive_loss_avg = Averager()  # acompanha apenas a parte contrastiva
 
     # filter that only require gradient decent
     filtered_parameters = []
@@ -160,9 +175,42 @@ def train(opt):
                 cost = criterion(preds, text, preds_size, length)
 
         else:
-            preds = model(image, text[:, :-1])  # align with Attention.forward
+            # --- forward com ou sem coleta de hidden states ---
+            use_contrastive_this_iter = (
+                contrastive_criterion is not None
+                and getattr(opt, 'use_contrastive', False)
+            )
+
+            if use_contrastive_this_iter:
+                preds, hidden_states = model(
+                    image, text[:, :-1], return_contrastive=True
+                )
+            else:
+                preds = model(image, text[:, :-1])  # align with Attention.forward
+
             target = text[:, 1:]  # without [GO] Symbol
-            cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
+            ce_cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
+
+            # --- perda contrastiva ---
+            contrastive_cost = torch.tensor(0.0, device=device)
+            if use_contrastive_this_iter:
+                # Warm-up: lambda sobe linearmente de 0 até contrastive_lambda
+                warmup = getattr(opt, 'contrastive_warmup', 0)
+                if warmup > 0 and iteration < warmup:
+                    effective_lambda = opt.contrastive_lambda * (iteration / warmup)
+                else:
+                    effective_lambda = opt.contrastive_lambda
+
+                # model.module acessa o Model subjacente quando DataParallel está ativo
+                _model = model.module if hasattr(model, 'module') else model
+                char_embs, char_labels = _model.contrastive_head(
+                    hidden_states, text, length
+                )
+                raw_contrastive = contrastive_criterion(char_embs, char_labels)
+                contrastive_cost = effective_lambda * raw_contrastive
+                contrastive_loss_avg.add(raw_contrastive)
+
+            cost = ce_cost + contrastive_cost
 
         model.zero_grad()
         cost.backward()
@@ -185,6 +233,11 @@ def train(opt):
                 # training loss and validation loss
                 loss_log = f'[{iteration+1}/{opt.num_iter}] Train loss: {loss_avg.val():0.5f}, Valid loss: {valid_loss:0.5f}, Elapsed_time: {elapsed_time:0.5f}'
                 loss_avg.reset()
+
+                # log contrastive loss separately when active
+                if contrastive_criterion is not None:
+                    loss_log += f', Contrastive loss: {contrastive_loss_avg.val():0.5f}'
+                    contrastive_loss_avg.reset()
 
                 current_model_log = f'{"Current_accuracy":17s}: {current_accuracy:0.3f}, {"Current_norm_ED":17s}: {current_norm_ED:0.2f}'
 
@@ -274,10 +327,29 @@ if __name__ == '__main__':
                         help='the number of output channel of Feature extractor')
     parser.add_argument('--hidden_size', type=int, default=256, help='the size of the LSTM hidden state')
 
+    """ Contrastive / Triplet Loss """
+    parser.add_argument('--use_contrastive', action='store_true',
+                        help='Habilitar perda contrastiva auxiliar (Triplet Loss nos hidden states do decoder de atenção). '
+                             'Requer --Prediction Attn.')
+    parser.add_argument('--contrastive_margin', type=float, default=0.5,
+                        help='Margem para o Triplet Loss (distância cosseno). default=0.5')
+    parser.add_argument('--contrastive_lambda', type=float, default=0.1,
+                        help='Peso da perda contrastiva na perda total (Loss = CE + λ·Triplet). default=0.1')
+    parser.add_argument('--contrastive_mining', type=str, default='semihard',
+                        choices=['semihard', 'hard', 'all'],
+                        help='Estratégia de mineração de trinças. default=semihard')
+    parser.add_argument('--contrastive_embedding_dim', type=int, default=128,
+                        help='Dimensão do embedding contrastivo (saída do CharContrastiveHead). default=128')
+    parser.add_argument('--contrastive_warmup', type=int, default=0,
+                        help='Número de iterações de warm-up: λ sobe linearmente de 0 até contrastive_lambda. '
+                             'Permite que o decoder estabilize antes dos gradientes contrastivos. default=0')
+
     opt = parser.parse_args()
 
     if not opt.exp_name:
         opt.exp_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}'
+        if getattr(opt, 'use_contrastive', False):
+            opt.exp_name += f'-Contrastive_lam{opt.contrastive_lambda}_m{opt.contrastive_margin}'
         opt.exp_name += f'-Seed{opt.manualSeed}'
         # print(opt.exp_name)
 
@@ -295,9 +367,12 @@ if __name__ == '__main__':
     torch.manual_seed(opt.manualSeed)
     torch.cuda.manual_seed(opt.manualSeed)
 
-    cudnn.benchmark = True
-    cudnn.deterministic = True
+    cudnn.enabled = False  # cuDNN incompatível com PT 1.3.1 no sistema atual
+    cudnn.benchmark = False
+    cudnn.deterministic = False
     opt.num_gpu = torch.cuda.device_count()
+    # Force single-GPU: PyTorch 1.3.1 + modern CUDA breaks cuBLAS/cuDNN in DataParallel
+    opt.num_gpu = 1
     # print('device count', opt.num_gpu)
     if opt.num_gpu > 1:
         print('------ Use multi-GPU setting ------')

@@ -20,12 +20,15 @@ class Attention(nn.Module):
         one_hot = one_hot.scatter_(1, input_char, 1)
         return one_hot
 
-    def forward(self, batch_H, text, is_train=True, batch_max_length=25):
+    def forward(self, batch_H, text, is_train=True, batch_max_length=25, return_hidden=False):
         """
         input:
-            batch_H : contextual_feature H = hidden state of encoder. [batch_size x num_steps x contextual_feature_channels]
-            text : the text-index of each image. [batch_size x (max_length+1)]. +1 for [GO] token. text[:, 0] = [GO].
+            batch_H      : contextual_feature H = hidden state of encoder. [batch_size x num_steps x contextual_feature_channels]
+            text         : the text-index of each image. [batch_size x (max_length+1)]. +1 for [GO] token. text[:, 0] = [GO].
+            return_hidden: if True, also return output_hiddens [batch_size x num_steps x hidden_size]
+                           (used by CharContrastiveHead during training with teacher-forcing).
         output: probability distribution at each step [batch_size x num_steps x num_classes]
+                optionally also output_hiddens when return_hidden=True.
         """
         batch_size = batch_H.size(0)
         num_steps = batch_max_length + 1  # +1 for [s] at end of sentence.
@@ -52,8 +55,12 @@ class Attention(nn.Module):
                 hidden, alpha = self.attention_cell(hidden, batch_H, char_onehots)
                 probs_step = self.generator(hidden[0])
                 probs[:, i, :] = probs_step
+                output_hiddens[:, i, :] = hidden[0]  # also store for contrastive use
                 _, next_input = probs_step.max(1)
                 targets = next_input
+
+        if return_hidden:
+            return probs, output_hiddens  # batch_size x num_steps x num_classes, batch_size x num_steps x hidden_size
 
         return probs  # batch_size x num_steps x num_classes
 
