@@ -4,6 +4,10 @@ import time
 import random
 import string
 import argparse
+from urllib.parse import urlparse
+
+import mlflow
+import mlflow.pytorch
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -143,6 +147,17 @@ def train(opt):
         print(opt_log)
         opt_file.write(opt_log)
 
+    """ MLflow setup """
+    mlflow.set_experiment(opt.exp_name)
+    mlflow_run = mlflow.start_run(run_name=opt.exp_name)
+    # Resolve o diretório local de artefatos do MLflow (os modelos vão direto para lá)
+    _artifact_uri = mlflow.get_artifact_uri()
+    local_artifact_dir = urlparse(_artifact_uri).path
+    os.makedirs(local_artifact_dir, exist_ok=True)
+    # Log all hyperparameters
+    mlflow_params = {k: str(v) for k, v in vars(opt).items()}
+    mlflow.log_params(mlflow_params)
+
     """ start training """
     start_iter = 0
     if opt.saved_model != '':
@@ -231,23 +246,36 @@ def train(opt):
                 model.train()
 
                 # training loss and validation loss
-                loss_log = f'[{iteration+1}/{opt.num_iter}] Train loss: {loss_avg.val():0.5f}, Valid loss: {valid_loss:0.5f}, Elapsed_time: {elapsed_time:0.5f}'
+                train_loss_val = loss_avg.val()
+                loss_log = f'[{iteration+1}/{opt.num_iter}] Train loss: {train_loss_val:0.5f}, Valid loss: {valid_loss:0.5f}, Elapsed_time: {elapsed_time:0.5f}'
                 loss_avg.reset()
+
+                # MLflow: log per-step metrics
+                mlflow_metrics = {
+                    'train_loss': train_loss_val,
+                    'valid_loss': valid_loss,
+                    'accuracy': current_accuracy,
+                    'norm_ED': current_norm_ED,
+                }
 
                 # log contrastive loss separately when active
                 if contrastive_criterion is not None:
-                    loss_log += f', Contrastive loss: {contrastive_loss_avg.val():0.5f}'
+                    contrastive_val = contrastive_loss_avg.val()
+                    loss_log += f', Contrastive loss: {contrastive_val:0.5f}'
+                    mlflow_metrics['contrastive_loss'] = contrastive_val
                     contrastive_loss_avg.reset()
+
+                mlflow.log_metrics(mlflow_metrics, step=iteration + 1)
 
                 current_model_log = f'{"Current_accuracy":17s}: {current_accuracy:0.3f}, {"Current_norm_ED":17s}: {current_norm_ED:0.2f}'
 
                 # keep best accuracy model (on valid dataset)
                 if current_accuracy > best_accuracy:
                     best_accuracy = current_accuracy
-                    torch.save(model.state_dict(), f'./saved_models/{opt.exp_name}/best_accuracy.pth')
+                    torch.save(model.state_dict(), os.path.join(local_artifact_dir, 'best_accuracy.pth'))
                 if current_norm_ED > best_norm_ED:
                     best_norm_ED = current_norm_ED
-                    torch.save(model.state_dict(), f'./saved_models/{opt.exp_name}/best_norm_ED.pth')
+                    torch.save(model.state_dict(), os.path.join(local_artifact_dir, 'best_norm_ED.pth'))
                 best_model_log = f'{"Best_accuracy":17s}: {best_accuracy:0.3f}, {"Best_norm_ED":17s}: {best_norm_ED:0.2f}'
 
                 loss_model_log = f'{loss_log}\n{current_model_log}\n{best_model_log}'
@@ -271,10 +299,22 @@ def train(opt):
         # save model per 1e+5 iter.
         if (iteration + 1) % 1e+5 == 0:
             torch.save(
-                model.state_dict(), f'./saved_models/{opt.exp_name}/iter_{iteration+1}.pth')
+                model.state_dict(), os.path.join(local_artifact_dir, f'iter_{iteration+1}.pth'))
 
         if (iteration + 1) == opt.num_iter:
             print('end the training')
+            # MLflow: log final best metrics
+            mlflow.log_metrics({
+                'best_accuracy': best_accuracy,
+                'best_norm_ED': best_norm_ED,
+            }, step=iteration + 1)
+            # MLflow: upload os logs de texto (modelos .pth já estão em local_artifact_dir)
+            exp_dir = f'./saved_models/{opt.exp_name}'
+            for log_file in ['opt.txt', 'log_train.txt', 'log_dataset.txt']:
+                log_path = os.path.join(exp_dir, log_file)
+                if os.path.isfile(log_path):
+                    mlflow.log_artifact(log_path)
+            mlflow.end_run()
             sys.exit()
         iteration += 1
 
