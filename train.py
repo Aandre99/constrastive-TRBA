@@ -250,22 +250,23 @@ def train(opt):
                 loss_log = f'[{iteration+1}/{opt.num_iter}] Train loss: {train_loss_val:0.5f}, Valid loss: {valid_loss:0.5f}, Elapsed_time: {elapsed_time:0.5f}'
                 loss_avg.reset()
 
-                # MLflow: log per-step metrics
+                # MLflow: log per-step metrics (float() converte tensores CUDA para Python float)
+                _step = int(iteration + 1)
                 mlflow_metrics = {
-                    'train_loss': train_loss_val,
-                    'valid_loss': valid_loss,
-                    'accuracy': current_accuracy,
-                    'norm_ED': current_norm_ED,
+                    'train_loss': float(train_loss_val),
+                    'valid_loss': float(valid_loss),
+                    'accuracy': float(current_accuracy),
+                    'norm_ED': float(current_norm_ED),
                 }
 
                 # log contrastive loss separately when active
                 if contrastive_criterion is not None:
                     contrastive_val = contrastive_loss_avg.val()
                     loss_log += f', Contrastive loss: {contrastive_val:0.5f}'
-                    mlflow_metrics['contrastive_loss'] = contrastive_val
+                    mlflow_metrics['contrastive_loss'] = float(contrastive_val)
                     contrastive_loss_avg.reset()
 
-                mlflow.log_metrics(mlflow_metrics, step=iteration + 1)
+                mlflow.log_metrics(mlflow_metrics, step=_step)
 
                 current_model_log = f'{"Current_accuracy":17s}: {current_accuracy:0.3f}, {"Current_norm_ED":17s}: {current_norm_ED:0.2f}'
 
@@ -305,9 +306,9 @@ def train(opt):
             print('end the training')
             # MLflow: log final best metrics
             mlflow.log_metrics({
-                'best_accuracy': best_accuracy,
-                'best_norm_ED': best_norm_ED,
-            }, step=iteration + 1)
+                'best_accuracy': float(best_accuracy),
+                'best_norm_ED': float(best_norm_ED),
+            }, step=int(iteration + 1))
             # MLflow: upload os logs de texto (modelos .pth já estão em local_artifact_dir)
             exp_dir = f'./saved_models/{opt.exp_name}'
             for log_file in ['opt.txt', 'log_train.txt', 'log_dataset.txt']:

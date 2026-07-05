@@ -12,8 +12,8 @@ DEVICE=0
 
 # Defaults
 NUM_ITER=30000
-BATCH_SIZE=32
-CONTRASTIVE_MARGIN=0.5
+BATCH_SIZE=128
+CONTRASTIVE_MARGIN=0.8
 CONTRASTIVE_LAMBDA=0.1
 CONTRASTIVE_MINING=semihard
 
@@ -41,7 +41,7 @@ BASE_ARGS=(
     --FT
     --batch_size          "$BATCH_SIZE"
     --num_iter            "$NUM_ITER"
-    --valInterval         500
+    --valInterval         2000
     --lr                  0.1
     --imgH 32 --imgW 100
     --PAD
