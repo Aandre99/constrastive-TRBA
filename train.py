@@ -372,8 +372,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_contrastive', action='store_true',
                         help='Habilitar perda contrastiva auxiliar (Triplet Loss nos hidden states do decoder de atenção). '
                              'Requer --Prediction Attn.')
-    parser.add_argument('--contrastive_margin', type=float, default=0.5,
-                        help='Margem para o Triplet Loss (distância cosseno). default=0.5')
+    parser.add_argument('--contrastive_margin', type=float, default=0.8,
+                        help='Margem para o Triplet Loss (distância cosseno). default=0.8')
     parser.add_argument('--contrastive_lambda', type=float, default=0.1,
                         help='Peso da perda contrastiva na perda total (Loss = CE + λ·Triplet). default=0.1')
     parser.add_argument('--contrastive_mining', type=str, default='semihard',

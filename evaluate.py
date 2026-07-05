@@ -346,9 +346,9 @@ def run_inference(opt):
 
     # ── CSV de erros ─────────────────────────────────────────────────────
     # Salvo no pai de output_dir com sufixo _contrastive.csv ou _base.csv
-    csv_suffix = '_contrastive.csv' if is_contrastive else '_base.csv'
-    csv_path = output_dir.parent / (output_dir.name + csv_suffix)
-    error_rows = []   # acumula linhas; escrito de uma vez no final
+    csv_suffix = 'results_contrastive.csv' if is_contrastive else 'results_base.csv'
+    csv_path = output_dir.parent / csv_suffix
+    csv_rows = []   # todos os resultados (corretos + erros); escrito de uma vez no final
 
     total = len(dataset)
     processed = 0   # imagens inferidas
@@ -398,11 +398,15 @@ def run_inference(opt):
             for img_path, pred, pred_max_prob in zip(image_paths, preds_str, preds_max_prob):
                 processed += 1
 
-                # Pós-processamento Attn: cortar após token [s]
+                # Pós-processamento Attn: cortar após token [s] e limitar comprimento
                 if 'Attn' in opt.Prediction:
                     eos_idx = pred.find('[s]')
                     pred = pred[:eos_idx]
                     pred_max_prob = pred_max_prob[:eos_idx]
+
+                if opt.max_label_len > 0:
+                    pred = pred[:opt.max_label_len]
+                    pred_max_prob = pred_max_prob[:opt.max_label_len]
 
                 try:
                     confidence = float(pred_max_prob.cumprod(dim=0)[-1])
@@ -413,14 +417,25 @@ def run_inference(opt):
 
                 # ── comparação com GT ──────────────────────────────────────
                 gt_label = gt_map.get(short_name)   # None se sem GT
+                is_correct = (gt_label is not None) and (pred == gt_label)
+
+                # acumula TODOS os resultados no CSV (quando há GT)
+                if gt_label is not None:
+                    csv_rows.append({
+                        'img':     short_name,
+                        'label':   gt_label,
+                        'pred':    pred,
+                        'conf':    f'{confidence:.6f}',
+                        'correct': '1' if is_correct else '0',
+                    })
 
                 if errors_only:
                     if gt_label is None:
                         # Imagem não listada no gt.txt: pula silenciosamente
                         continue
-                    if pred == gt_label:
+                    if is_correct:
                         correct += 1
-                        continue   # predição correta → não salva
+                        continue   # predição correta → não salva imagem
 
                 # ── salva imagem de saída ──────────────────────────────────
                 stem = Path(img_path).stem
@@ -435,27 +450,19 @@ def run_inference(opt):
                 )
                 saved += 1
 
-                # acumula linha para o CSV (apenas quando há GT)
-                if gt_label is not None:
-                    error_rows.append({
-                        'img':   short_name,
-                        'pred':  pred,
-                        'label': gt_label,
-                        'conf':  f'{confidence:.6f}',
-                    })
-
                 if errors_only:
                     print(f"{short_name:<35}  {gt_label:<20}  {pred:<20}  {confidence:>5.2%}  → {out_name}")
                 else:
                     print(f"{short_name:<35}  {pred:<20}  {confidence:>5.2%}  → {out_name}")
 
-    # ── escreve CSV ────────────────────────────────────────────────────────────
-    if error_rows:
+    # ── escreve CSV (todos os resultados) ────────────────────────────────────────────
+    if csv_rows:
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['img', 'pred', 'label', 'conf'])
+            writer = csv.DictWriter(f, fieldnames=['img', 'label', 'pred', 'conf', 'correct'])
             writer.writeheader()
-            writer.writerows(error_rows)
-        print(f"[csv] {len(error_rows)} erros exportados para: {csv_path}")
+            writer.writerows(csv_rows)
+        n_err_csv = sum(1 for r in csv_rows if r['correct'] == '0')
+        print(f"[csv] {len(csv_rows)} resultados ({n_err_csv} erros) exportados para: {csv_path}")
 
     print(f"{'─'*60}")
     if errors_only:
@@ -485,6 +492,10 @@ def parse_args():
                         help='Pasta onde as imagens de saída serão salvas')
     parser.add_argument('--dpi', type=int, default=150,
                         help='DPI das imagens de saída')
+    parser.add_argument('--max_label_len', type=int, default=7,
+                        help='Comprimento máximo da predição após truncamento por [s]. '
+                             'Evita que o decoder Attn emita caracteres extras antes do EOS. '
+                             'Use 0 para desativar. default=7')
 
     # ── modelo ───────────────────────────────────────────────────────────────
     parser.add_argument('--saved_model', default='',
@@ -575,7 +586,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if opt.mlflow_run_id:
-        project_root = Path(__file__).resolve().parent.parent
+        project_root = Path(__file__).resolve().parent
         model_path = project_root / 'mlruns' / '1' / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
         if not model_path.is_file():
             print(f"[erro] Modelo não encontrado: {model_path}")
