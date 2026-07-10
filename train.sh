@@ -12,9 +12,9 @@ DEVICE=0
 
 # Defaults
 NUM_ITER=30000
-BATCH_SIZE=128
-CONTRASTIVE_MARGIN=0.8
-CONTRASTIVE_LAMBDA=0.1
+BATCH_SIZE=64
+CONTRASTIVE_MARGIN=1.2
+CONTRASTIVE_LAMBDA=0.6
 CONTRASTIVE_MINING=semihard
 
 args=("$@")
@@ -33,8 +33,8 @@ while [ $i -lt ${#args[@]} ]; do
 done
 
 BASE_ARGS=(
-    --train_data          data_lmdb/rodosol/train/
-    --valid_data          data_lmdb/rodosol/val/
+    --train_data          data_lmdb/rodosol/train2/
+    --valid_data          data_lmdb/rodosol/val2/
     --select_data         '/'
     --batch_ratio         '1.0'
     --saved_model         saved_models/TPS-ResNet-BiLSTM-Attn.pth

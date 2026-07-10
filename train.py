@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from tqdm import tqdm
 import random
 import string
 import argparse
@@ -157,6 +158,11 @@ def train(opt):
     # Log all hyperparameters
     mlflow_params = {k: str(v) for k, v in vars(opt).items()}
     mlflow.log_params(mlflow_params)
+    # Log dataset sizes
+    train_size = sum(len(loader.dataset) for loader in train_dataset.data_loader_list)
+    val_size = len(valid_dataset)
+    mlflow.log_params({"dataset/train_size": train_size, "dataset/val_size": val_size})
+    print(f'[MLflow] dataset/train_size={train_size}, dataset/val_size={val_size}')
 
     """ start training """
     start_iter = 0
@@ -171,6 +177,14 @@ def train(opt):
     best_accuracy = -1
     best_norm_ED = -1
     iteration = start_iter
+
+    pbar = tqdm(
+        total=opt.num_iter,
+        initial=start_iter,
+        desc='Training',
+        dynamic_ncols=True,
+        unit='it',
+    )
 
     while(True):
         # train part
@@ -259,11 +273,21 @@ def train(opt):
                     'norm_ED': float(current_norm_ED),
                 }
 
+                # Métricas que aparecem na barra de progresso
+                pbar_postfix = {
+                    'tr_loss': f'{float(train_loss_val):.4f}',
+                    'val_loss': f'{float(valid_loss):.4f}',
+                    'acc': f'{float(current_accuracy):.3f}',
+                    'ned': f'{float(current_norm_ED):.3f}',
+                    'best_acc': f'{best_accuracy:.3f}',
+                }
+
                 # log contrastive loss separately when active
                 if contrastive_criterion is not None:
                     contrastive_val = contrastive_loss_avg.val()
                     loss_log += f', Contrastive loss: {contrastive_val:0.5f}'
                     mlflow_metrics['contrastive_loss'] = float(contrastive_val)
+                    pbar_postfix['ctr_loss'] = f'{float(contrastive_val):.4f}'
                     contrastive_loss_avg.reset()
 
                 mlflow.log_metrics(mlflow_metrics, step=_step)
@@ -273,17 +297,21 @@ def train(opt):
                 # keep best accuracy model (on valid dataset)
                 if current_accuracy > best_accuracy:
                     best_accuracy = current_accuracy
+                    pbar_postfix['best_acc'] = f'{best_accuracy:.3f}'
                     torch.save(model.state_dict(), os.path.join(local_artifact_dir, 'best_accuracy.pth'))
                 if current_norm_ED > best_norm_ED:
                     best_norm_ED = current_norm_ED
                     torch.save(model.state_dict(), os.path.join(local_artifact_dir, 'best_norm_ED.pth'))
                 best_model_log = f'{"Best_accuracy":17s}: {best_accuracy:0.3f}, {"Best_norm_ED":17s}: {best_norm_ED:0.2f}'
 
+                # Atualiza a barra de progresso com as métricas
+                pbar.set_postfix(pbar_postfix)
+
+                # Mantém o log completo apenas no arquivo
                 loss_model_log = f'{loss_log}\n{current_model_log}\n{best_model_log}'
-                print(loss_model_log)
                 log.write(loss_model_log + '\n')
 
-                # show some predicted results
+                # show some predicted results (apenas no arquivo de log)
                 dashed_line = '-' * 80
                 head = f'{"Ground Truth":25s} | {"Prediction":25s} | Confidence Score & T/F'
                 predicted_result_log = f'{dashed_line}\n{head}\n{dashed_line}\n'
@@ -294,8 +322,9 @@ def train(opt):
 
                     predicted_result_log += f'{gt:25s} | {pred:25s} | {confidence:0.4f}\t{str(pred == gt)}\n'
                 predicted_result_log += f'{dashed_line}'
-                print(predicted_result_log)
                 log.write(predicted_result_log + '\n')
+
+        pbar.update(1)
 
         # save model per 1e+5 iter.
         if (iteration + 1) % 1e+5 == 0:
@@ -303,6 +332,7 @@ def train(opt):
                 model.state_dict(), os.path.join(local_artifact_dir, f'iter_{iteration+1}.pth'))
 
         if (iteration + 1) == opt.num_iter:
+            pbar.close()
             print('end the training')
             # MLflow: log final best metrics
             mlflow.log_metrics({
