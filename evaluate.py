@@ -56,6 +56,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from PIL import Image
 from natsort import natsorted
+from tqdm import tqdm
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent)
 if _PROJECT_ROOT not in sys.path:
@@ -308,7 +309,7 @@ def save_result_image(
     )
 
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-    fig.savefig(output_path, dpi=dpi, bbox_inches='tight', facecolor=fig.get_facecolor())
+    fig.savefig(output_path, dpi=dpi, facecolor=fig.get_facecolor())
     plt.close(fig)
 
 
@@ -344,29 +345,25 @@ def run_inference(opt):
     output_dir = Path(opt.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── CSV de erros ─────────────────────────────────────────────────────
-    # Salvo no pai de output_dir com sufixo _contrastive.csv ou _base.csv
+    # ── CSV de resultados ────────────────────────────────────────────────────
     csv_suffix = 'results_contrastive.csv' if is_contrastive else 'results_base.csv'
     csv_path = output_dir.parent / csv_suffix
     csv_rows = []   # todos os resultados (corretos + erros); escrito de uma vez no final
 
     total = len(dataset)
-    processed = 0   # imagens inferidas
-    saved = 0       # imagens salvas (erros)
-    correct = 0     # acertos (apenas quando GT disponível)
+    processed = 0
+    correct = 0
+    n_errors = 0
 
-    mode_label = 'erros apenas (gt.txt encontrado)' if errors_only else 'todas as imagens'
-    print(f"\n{'─'*60}")
-    print(f"Modelo : {model_type}")
-    print(f"Modo   : {mode_label}")
-    print(f"{'─'*60}")
-    if errors_only:
-        print(f"{'Arquivo':<35}  {'GT':<20}  {'Predição':<20}  {'Conf':>6}")
-    else:
-        print(f"{'Arquivo':<35}  {'Predição':<20}  {'Conf':>6}")
-    print(f"{'─'*60}")
+    mode_label = 'gt' if errors_only else 'livre'
+    bar_desc = f'{model_type} [{mode_label}]'
 
-    with torch.no_grad():
+    with torch.no_grad(), tqdm(
+        total=total,
+        desc=bar_desc,
+        unit='img',
+        dynamic_ncols=True,
+    ) as pbar:
         for image_tensors, image_paths in loader:
             batch_size = image_tensors.size(0)
             images = image_tensors.to(device)
@@ -376,15 +373,12 @@ def run_inference(opt):
 
             # ── forward ────────────────────────────────────────────────────
             if 'CTC' in opt.Prediction:
-                # Modelos CTC não têm decoder de atenção; contrastive não se aplica aqui.
                 preds = model(images, text_for_pred)
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
                 _, preds_index = preds.max(2)
                 preds_str = converter.decode(preds_index, preds_size)
             else:
                 if is_contrastive:
-                    # Modelo contrastivo: return_contrastive=False descarta hidden states
-                    # e retorna apenas as predições — compatível com o forward do Attention.
                     preds = model(images, text_for_pred, is_train=False, return_contrastive=False)
                 else:
                     preds = model(images, text_for_pred, is_train=False)
@@ -416,63 +410,53 @@ def run_inference(opt):
                 short_name = Path(img_path).name
 
                 # ── comparação com GT ──────────────────────────────────────
-                gt_label = gt_map.get(short_name)   # None se sem GT
+                gt_label = gt_map.get(short_name)
                 is_correct = (gt_label is not None) and (pred == gt_label)
 
-                # acumula TODOS os resultados no CSV (quando há GT)
+                # Acumula todos os resultados no CSV
                 if gt_label is not None:
                     csv_rows.append({
-                        'img':     short_name,
-                        'label':   gt_label,
-                        'pred':    pred,
-                        'conf':    f'{confidence:.6f}',
-                        'correct': '1' if is_correct else '0',
+                        'img':      short_name,
+                        'img_path': img_path,
+                        'label':    gt_label,
+                        'pred':     pred,
+                        'conf':     f'{confidence:.6f}',
+                        'correct':  '1' if is_correct else '0',
                     })
 
-                if errors_only:
-                    if gt_label is None:
-                        # Imagem não listada no gt.txt: pula silenciosamente
-                        continue
-                    if is_correct:
-                        correct += 1
-                        continue   # predição correta → não salva imagem
+                # Atualiza contadores e barra
+                if errors_only and gt_label is None:
+                    pbar.update(1)
+                    continue
 
-                # ── salva imagem de saída ──────────────────────────────────
-                stem = Path(img_path).stem
-                out_name = f"{stem}_error.png" if errors_only else f"{stem}_pred.png"
-                out_path = str(output_dir / out_name)
-
-                save_result_image(
-                    img_path, pred, confidence, out_path,
-                    model_type=model_type,
-                    gt_text=gt_label,
-                    dpi=opt.dpi,
-                )
-                saved += 1
-
-                if errors_only:
-                    print(f"{short_name:<35}  {gt_label:<20}  {pred:<20}  {confidence:>5.2%}  → {out_name}")
+                if is_correct:
+                    correct += 1
                 else:
-                    print(f"{short_name:<35}  {pred:<20}  {confidence:>5.2%}  → {out_name}")
+                    n_errors += 1
 
-    # ── escreve CSV (todos os resultados) ────────────────────────────────────────────
+                pbar.update(1)
+                if errors_only:
+                    with_gt_so_far = correct + n_errors
+                    acc = correct / with_gt_so_far if with_gt_so_far else 0.0
+                    pbar.set_postfix(acc=f'{acc:.2%}', erros=n_errors)
+
+    # ── escreve CSV ─────────────────────────────────────────────────────────
     if csv_rows:
+        output_dir.mkdir(parents=True, exist_ok=True)
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['img', 'label', 'pred', 'conf', 'correct'])
+            writer = csv.DictWriter(
+                f, fieldnames=['img', 'img_path', 'label', 'pred', 'conf', 'correct'])
             writer.writeheader()
             writer.writerows(csv_rows)
         n_err_csv = sum(1 for r in csv_rows if r['correct'] == '0')
-        print(f"[csv] {len(csv_rows)} resultados ({n_err_csv} erros) exportados para: {csv_path}")
+        print(f"[csv] {len(csv_rows)} resultados ({n_err_csv} erros) → {csv_path}")
 
-    print(f"{'─'*60}")
     if errors_only:
         with_gt = sum(1 for p in dataset.image_path_list if Path(p).name in gt_map)
         accuracy = correct / with_gt if with_gt else 0.0
-        print(f"✓ {processed}/{total} inferidas  |  "
-              f"{correct}/{with_gt} corretas ({accuracy:.2%})  |  "
-              f"{saved} erros salvos em: {output_dir}/")
+        print(f"✓ {correct}/{with_gt} corretas ({accuracy:.2%})  |  {n_errors} erros")
     else:
-        print(f"✓ {processed}/{total} imagem(ns) processada(s).  Resultados em: {output_dir}/")
+        print(f"✓ {processed}/{total} processadas")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -486,12 +470,16 @@ def parse_args():
     )
 
     # ── entrada / saída ──────────────────────────────────────────────────────
-    parser.add_argument('--input', required=True,
-                        help='Imagem única (.jpg/.png/…) ou pasta contendo imagens')
+    parser.add_argument('--input', default='',
+                        help='Imagem única (.jpg/.png/…) ou pasta contendo imagens. '
+                             'Mutuamente exclusivo com --dataset.')
+    parser.add_argument('--dataset', type=str, default='',
+                        choices=['cars', 'cars_motors'],
+                        help='Subpasta do conjunto de testes em dataset/test/. '
+                             'Opções: cars | cars_motors. '
+                             'Quando fornecido, sobrepõe --input com dataset/test/<dataset>.')
     parser.add_argument('--output_dir', default='result_visualize/',
-                        help='Pasta onde as imagens de saída serão salvas')
-    parser.add_argument('--dpi', type=int, default=150,
-                        help='DPI das imagens de saída')
+                        help='Pasta onde o CSV de resultados será salvo')
     parser.add_argument('--max_label_len', type=int, default=7,
                         help='Comprimento máximo da predição após truncamento por [s]. '
                              'Evita que o decoder Attn emita caracteres extras antes do EOS. '
@@ -515,7 +503,7 @@ def parse_args():
                              '(padrão: cuda se disponível, senão cpu)')
 
     # ── DataLoader ───────────────────────────────────────────────────────────
-    parser.add_argument('--bsize', type=int, default=16,
+    parser.add_argument('--bsize', type=int, default=512,
                         help='Tamanho do batch para inferência')
     parser.add_argument('--workers', type=int, default=4,
                         help='Número de workers do DataLoader')
@@ -579,6 +567,19 @@ def parse_args():
 
 if __name__ == '__main__':
     opt = parse_args()
+
+    # ── resolução do dataset (--dataset sobrepõe --input) ─────────────────────
+    if opt.dataset and opt.input:
+        print("[erro] Passe apenas um de --dataset ou --input, não ambos.")
+        sys.exit(1)
+
+    if opt.dataset:
+        project_root = Path(__file__).resolve().parent
+        opt.input = str(project_root / 'dataset' / 'test' / opt.dataset)
+        print(f"[dataset] Usando subpasta: {opt.input}")
+    elif not opt.input:
+        print("[erro] Fornecer --input <caminho> ou --dataset <cars|cars_motors>.")
+        sys.exit(1)
 
     # ── resolução do caminho do modelo ─────────────────────────────────────────
     if opt.mlflow_run_id and opt.saved_model:

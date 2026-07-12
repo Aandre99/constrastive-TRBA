@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `statistics.py`
 
-- **Pasta de resultados**: `results`
+- **Pasta de resultados**: `outputs/cars`
 - **Conjunto de teste**: 4000 imagens
 
 ---
@@ -24,8 +24,8 @@ Predição exata: `label == pred`
 | Métrica | Base | Contrastivo | Δ |
 |---------|------|-------------|---|
 | Total de caracteres (GT) | 28000 | 28000 | |
-| Soma das distâncias de edição | 119 | 91 | ▲ -28 |
-| **CER** | **0.43%** | **0.33%** | **▲ -0.10%** |
+| Soma das distâncias de edição | 119 | 90 | ▲ -29 |
+| **CER** | **0.43%** | **0.32%** | **▲ -0.10%** |
 
 ## 3. Distribuição de Erros por Classe
 
@@ -51,7 +51,7 @@ Classes com pelo menos 1 erro em qualquer modelo, ordenadas alfabeticamente (Let
 | `V` | 166 | 4 | 4 | 2.41% | 2.41% | 0.00% |
 | `X` | 208 | 1 | 0 | 0.48% | 0.00% | -0.48% |
 | `0` | 1238 | 0 | 5 | 0.00% | 0.40% | +0.40% |
-| `1` | 1641 | 4 | 6 | 0.24% | 0.37% | +0.12% |
+| `1` | 1641 | 4 | 5 | 0.24% | 0.30% | +0.06% |
 | `2` | 1338 | 12 | 3 | 0.90% | 0.22% | -0.67% |
 | `3` | 1431 | 3 | 4 | 0.21% | 0.28% | +0.07% |
 | `4` | 1534 | 10 | 9 | 0.65% | 0.59% | -0.07% |
