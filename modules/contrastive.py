@@ -3,8 +3,8 @@ modules/contrastive.py
 ======================
 Componentes de perda contrastiva auxiliar para o TRBA.
 
-Aplica Triplet Margin Loss nos hidden states do Attention Decoder,
-forcando discriminacao entre caracteres visualmente confusaveis
+Aplica Triplet Margin Loss nos vetores de contexto (context_vectors) do 
+Attention Decoder, forcando discriminacao entre caracteres visualmente confusaveis
 (O/0, I/1, B/8, S/5, etc.).
 
 Implementação otimizada com pytorch-metric-learning v1.0.0.
@@ -20,7 +20,7 @@ from pytorch_metric_learning import losses, miners, distances
 
 class CharContrastiveHead(nn.Module):
     """
-    Projeta hidden states do Attention Decoder em embeddings contrastivos.
+    Projeta vetores de contexto do Attention Decoder em embeddings contrastivos.
     """
 
     def __init__(self, hidden_size=256, embedding_dim=128, dropout=0.2):
@@ -32,16 +32,16 @@ class CharContrastiveHead(nn.Module):
             nn.Linear(hidden_size, embedding_dim),
         )
 
-    def forward(self, hidden_states, text_targets, lengths):
+    def forward(self, context_vectors, text_targets, lengths):
         """
-        Extrai embeddings L2-normalizados por caractere a partir dos hidden
-        states alinhados com teacher-forcing (versão vetorizada sem loops).
+        Extrai embeddings L2-normalizados por caractere a partir dos vetores
+        de contexto alinhados com teacher-forcing (versão vetorizada sem loops).
         """
-        batch_size, T, hidden_size = hidden_states.shape
-        device = hidden_states.device
+        batch_size, T, hidden_size = context_vectors.shape
+        device = context_vectors.device
         
-        # Alinha text_targets com hidden_states
-        # hidden_states[b, t] prediz text_targets[b, t+1]
+        # Alinha text_targets com context_vectors
+        # context_vectors[b, t] prediz text_targets[b, t+1]
         targets = text_targets[:, 1 : 1 + T]
         
         # Cria máscara booleana temporal
@@ -54,7 +54,7 @@ class CharContrastiveHead(nn.Module):
             return None, None
             
         # Extração vetorizada
-        embs = hidden_states[valid_mask] # [N, hidden_size]
+        embs = context_vectors[valid_mask] # [N, hidden_size]
         labels = targets[valid_mask]     # [N]
         
         # Projeta e normaliza

@@ -20,20 +20,24 @@ class Attention(nn.Module):
         one_hot = one_hot.scatter_(1, input_char, 1)
         return one_hot
 
-    def forward(self, batch_H, text, is_train=True, batch_max_length=25, return_hidden=False):
+    def forward(self, batch_H, text, is_train=True, batch_max_length=25, return_context=False):
         """
         input:
             batch_H      : contextual_feature H = hidden state of encoder. [batch_size x num_steps x contextual_feature_channels]
             text         : the text-index of each image. [batch_size x (max_length+1)]. +1 for [GO] token. text[:, 0] = [GO].
-            return_hidden: if True, also return output_hiddens [batch_size x num_steps x hidden_size]
-                           (used by CharContrastiveHead during training with teacher-forcing).
+            return_context: if True, also return output_contexts [batch_size x num_steps x contextual_feature_channels]
+                           (used by CharContrastiveHead during training).
         output: probability distribution at each step [batch_size x num_steps x num_classes]
-                optionally also output_hiddens when return_hidden=True.
+                optionally also output_contexts when return_context=True.
         """
         batch_size = batch_H.size(0)
         num_steps = batch_max_length + 1  # +1 for [s] at end of sentence.
+        num_channel = batch_H.size(-1)
 
         output_hiddens = torch.FloatTensor(batch_size, num_steps, self.hidden_size).fill_(0).to(device)
+        if return_context:
+            output_contexts = torch.FloatTensor(batch_size, num_steps, num_channel).fill_(0).to(device)
+            
         hidden = (torch.FloatTensor(batch_size, self.hidden_size).fill_(0).to(device),
                   torch.FloatTensor(batch_size, self.hidden_size).fill_(0).to(device))
 
@@ -42,8 +46,10 @@ class Attention(nn.Module):
                 # one-hot vectors for a i-th char. in a batch
                 char_onehots = self._char_to_onehot(text[:, i], onehot_dim=self.num_classes)
                 # hidden : decoder's hidden s_{t-1}, batch_H : encoder's hidden H, char_onehots : one-hot(y_{t-1})
-                hidden, alpha = self.attention_cell(hidden, batch_H, char_onehots)
+                hidden, alpha, context = self.attention_cell(hidden, batch_H, char_onehots)
                 output_hiddens[:, i, :] = hidden[0]  # LSTM hidden index (0: hidden, 1: Cell)
+                if return_context:
+                    output_contexts[:, i, :] = context
             probs = self.generator(output_hiddens)
 
         else:
@@ -52,15 +58,16 @@ class Attention(nn.Module):
 
             for i in range(num_steps):
                 char_onehots = self._char_to_onehot(targets, onehot_dim=self.num_classes)
-                hidden, alpha = self.attention_cell(hidden, batch_H, char_onehots)
+                hidden, alpha, context = self.attention_cell(hidden, batch_H, char_onehots)
                 probs_step = self.generator(hidden[0])
                 probs[:, i, :] = probs_step
-                output_hiddens[:, i, :] = hidden[0]  # also store for contrastive use
+                if return_context:
+                    output_contexts[:, i, :] = context
                 _, next_input = probs_step.max(1)
                 targets = next_input
 
-        if return_hidden:
-            return probs, output_hiddens  # batch_size x num_steps x num_classes, batch_size x num_steps x hidden_size
+        if return_context:
+            return probs, output_contexts  # batch_size x num_steps x num_classes, batch_size x num_steps x num_channel
 
         return probs  # batch_size x num_steps x num_classes
 
@@ -85,4 +92,4 @@ class AttentionCell(nn.Module):
         context = torch.bmm(alpha.permute(0, 2, 1), batch_H).squeeze(1)  # batch_size x num_channel
         concat_context = torch.cat([context, char_onehots], 1)  # batch_size x (num_channel + num_embedding)
         cur_hidden = self.rnn(concat_context, prev_hidden)
-        return cur_hidden, alpha
+        return cur_hidden, alpha, context

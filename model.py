@@ -91,7 +91,7 @@ class Model(nn.Module):
         input              : imagem [B, C, H, W]
         text               : índices de texto [B, max_length+1] com [GO] em texto[:, 0]
         is_train           : True para teacher-forcing (treino), False para greedy (inferência)
-        return_contrastive : se True, retorna (prediction, hidden_states) em vez de apenas prediction.
+        return_contrastive : se True, retorna (prediction, context_vectors) em vez de apenas prediction.
                              Requer Prediction='Attn' e use_contrastive=True.
                              Usado pelo train.py para calcular a perda contrastiva.
         """
@@ -117,14 +117,14 @@ class Model(nn.Module):
 
         # Attn decoder
         if return_contrastive and self.use_contrastive:
-            prediction, hidden_states = self.Prediction(
+            prediction, context_vectors = self.Prediction(
                 contextual_feature.contiguous(),
                 text,
                 is_train,
                 batch_max_length=self.opt.batch_max_length,
-                return_hidden=True,
+                return_context=True,
             )
-            return prediction, hidden_states
+            return prediction, context_vectors
 
         prediction = self.Prediction(
             contextual_feature.contiguous(),

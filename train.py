@@ -104,7 +104,7 @@ def train(opt):
     else:
         criterion = torch.nn.CrossEntropyLoss(ignore_index=0).to(device)  # ignore [GO] token = ignore index 0
 
-    # Perda contrastiva auxiliar (Triplet Loss nos hidden states do decoder)
+    # Perda contrastiva auxiliar (Triplet Loss nos vetores de contexto da Atenção)
     contrastive_criterion = None
     if getattr(opt, 'use_contrastive', False):
         contrastive_criterion = ContrastiveLoss(
@@ -211,7 +211,7 @@ def train(opt):
             )
 
             if use_contrastive_this_iter:
-                preds, hidden_states = model(
+                preds, context_vectors = model(
                     image, text[:, :-1], return_contrastive=True
                 )
             else:
@@ -233,7 +233,7 @@ def train(opt):
                 # model.module acessa o Model subjacente quando DataParallel está ativo
                 _model = model.module if hasattr(model, 'module') else model
                 char_embs, char_labels = _model.contrastive_head(
-                    hidden_states, text, length
+                    context_vectors, text, length
                 )
                 raw_contrastive = contrastive_criterion(char_embs, char_labels)
                 contrastive_cost = effective_lambda * raw_contrastive
@@ -400,7 +400,7 @@ if __name__ == '__main__':
 
     """ Contrastive / Triplet Loss """
     parser.add_argument('--use_contrastive', action='store_true',
-                        help='Habilitar perda contrastiva auxiliar (Triplet Loss nos hidden states do decoder de atenção). '
+                        help='Habilitar perda contrastiva auxiliar (Triplet Loss nos vetores de contexto do decoder de atenção). '
                              'Requer --Prediction Attn.')
     parser.add_argument('--contrastive_margin', type=float, default=0.8,
                         help='Margem para o Triplet Loss (distância cosseno). default=0.8')
@@ -441,6 +441,7 @@ if __name__ == '__main__':
     cudnn.enabled = False  # cuDNN incompatível com PT 1.3.1 no sistema atual
     cudnn.benchmark = False
     cudnn.deterministic = False
+
     opt.num_gpu = torch.cuda.device_count()
     # Force single-GPU: PyTorch 1.3.1 + modern CUDA breaks cuBLAS/cuDNN in DataParallel
     opt.num_gpu = 1
