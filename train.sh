@@ -11,11 +11,12 @@ CONTRASTIVE=0
 DEVICE=0
 
 # Defaults
-NUM_ITER=1000
-BATCH_SIZE=32
+NUM_ITER=30000
+BATCH_SIZE=64
 CONTRASTIVE_MARGIN=0.8
 CONTRASTIVE_LAMBDA=0.4
 CONTRASTIVE_MINING=semihard
+RUN_NAME=None
 
 args=("$@")
 i=0
@@ -28,20 +29,21 @@ while [ $i -lt ${#args[@]} ]; do
         --contrastive-margin)  i=$((i+1)); CONTRASTIVE_MARGIN="${args[$i]}" ;;
         --contrastive-lambda)  i=$((i+1)); CONTRASTIVE_LAMBDA="${args[$i]}" ;;
         --contrastive-mining)  i=$((i+1)); CONTRASTIVE_MINING="${args[$i]}" ;;
+        --run_name)  i=$((i+1)); RUN_NAME="${args[$i]}" ;;
     esac
     i=$((i+1))
 done
 
 BASE_ARGS=(
-    --train_data          data_lmdb/rodosol/train/
-    --valid_data          data_lmdb/rodosol/val/
+    --train_data          data_lmdb/rodosol/train/cars
+    --valid_data          data_lmdb/rodosol/val/cars
     --select_data         '/'
     --batch_ratio         '1.0'
     --saved_model         saved_models/TPS-ResNet-BiLSTM-Attn.pth
     --FT
     --batch_size          "$BATCH_SIZE"
     --num_iter            "$NUM_ITER"
-    --valInterval         100
+    --valInterval         1000
     --lr                  0.1
     --imgH 32 --imgW 100
     --PAD

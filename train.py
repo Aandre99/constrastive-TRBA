@@ -150,7 +150,8 @@ def train(opt):
 
     """ MLflow setup """
     mlflow.set_experiment(opt.exp_name)
-    mlflow_run = mlflow.start_run(run_name=opt.exp_name)
+    run_name = opt.run_name if opt.run_name else opt.exp_name
+    mlflow_run = mlflow.start_run(run_name=run_name)
     # Resolve o diretório local de artefatos do MLflow (os modelos vão direto para lá)
     _artifact_uri = mlflow.get_artifact_uri()
     local_artifact_dir = urlparse(_artifact_uri).path
@@ -353,6 +354,7 @@ def train(opt):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', help='Where to store logs and models')
+    parser.add_argument('--run_name', default=None, help='MLflow run name. Defaults to exp_name if not provided')
     parser.add_argument('--train_data', required=True, help='path to training dataset')
     parser.add_argument('--valid_data', required=True, help='path to validation dataset')
     parser.add_argument('--manualSeed', type=int, default=1111, help='for random seed setting')
@@ -438,7 +440,7 @@ if __name__ == '__main__':
     torch.manual_seed(opt.manualSeed)
     torch.cuda.manual_seed(opt.manualSeed)
 
-    cudnn.enabled = False  # cuDNN incompatível com PT 1.3.1 no sistema atual
+    cudnn.enabled = True  # cuDNN incompatível com PT 1.3.1 no sistema atual
     cudnn.benchmark = False
     cudnn.deterministic = False
 
