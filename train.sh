@@ -16,7 +16,7 @@ BATCH_SIZE=64
 CONTRASTIVE_MARGIN=0.8
 CONTRASTIVE_LAMBDA=0.4
 CONTRASTIVE_MINING=semihard
-RUN_NAME=None
+RUN_NAME=
 
 args=("$@")
 i=0
@@ -35,8 +35,8 @@ while [ $i -lt ${#args[@]} ]; do
 done
 
 BASE_ARGS=(
-    --train_data          data_lmdb/rodosol/train/cars
-    --valid_data          data_lmdb/rodosol/val/cars
+    --train_data          data_lmdb/rodosol/train/cars_motors
+    --valid_data          data_lmdb/rodosol/val/cars_motors
     --select_data         '/'
     --batch_ratio         '1.0'
     --saved_model         saved_models/TPS-ResNet-BiLSTM-Attn.pth
@@ -63,9 +63,11 @@ if [ "$CONTRASTIVE" -eq 1 ]; then
         --contrastive_margin  "$CONTRASTIVE_MARGIN" \
         --contrastive_lambda  "$CONTRASTIVE_LAMBDA" \
         --contrastive_mining  "$CONTRASTIVE_MINING" \
-        --contrastive_warmup  100
+        --contrastive_warmup  100 \
+        ${RUN_NAME:+--run_name "$RUN_NAME"}
 else
     CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python train.py \
         --exp_name contrastiveTRBA \
-        "${BASE_ARGS[@]}"
+        "${BASE_ARGS[@]}" \
+        ${RUN_NAME:+--run_name "$RUN_NAME"}
 fi
