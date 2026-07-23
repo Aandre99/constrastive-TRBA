@@ -2,7 +2,7 @@
 
 > Gerado automaticamente por `statistics.py`
 
-- **Pasta de resultados**: `outputs/cars`
+- **Pasta de resultados**: `outputs/single/cars`
 - **Conjunto de teste**: 4000 imagens
 
 ---

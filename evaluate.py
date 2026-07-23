@@ -99,7 +99,7 @@ class ImageListDataset(torch.utils.data.Dataset):
             raise FileNotFoundError(f"Caminho inválido: {input_path}")
 
         self.nSamples = len(self.image_path_list)
-        print(f"[dataset] {self.nSamples} imagem(ns) encontrada(s).")
+        #print(f"[dataset] {self.nSamples} imagem(ns) encontrada(s).")
 
     def __len__(self):
         return self.nSamples
@@ -147,7 +147,7 @@ def load_gt(input_path: str, sensitive: bool = False) -> dict:
             if not sensitive:
                 label = label.lower()
             gt[fname.strip()] = label.strip()
-    print(f"[gt] {len(gt)} labels carregados de: {gt_path}")
+    #print(f"[gt] {len(gt)} labels carregados de: {gt_path}")
     return gt
 
 
@@ -171,19 +171,19 @@ def load_model(opt):
     model = Model(opt).to(device)
 
     model_type = 'Contrastivo' if getattr(opt, 'use_contrastive', False) else 'Base'
-    print(
-        f"[model] Tipo={model_type}  "
-        f"{opt.Transformation}-{opt.FeatureExtraction}-"
-        f"{opt.SequenceModeling}-{opt.Prediction}  |  "
-        f"classes={opt.num_class}  device={device}"
-    )
-    if getattr(opt, 'use_contrastive', False):
-        print(
-            f"[model] contrastive_embedding_dim={opt.contrastive_embedding_dim}  "
-            f"margin={opt.contrastive_margin}  "
-            f"lambda={opt.contrastive_lambda}  "
-            f"mining={opt.contrastive_mining}"
-        )
+    #print(
+    #    f"[model] Tipo={model_type}  "
+    #    f"{opt.Transformation}-{opt.FeatureExtraction}-"
+    #    f"{opt.SequenceModeling}-{opt.Prediction}  |  "
+    #    f"classes={opt.num_class}  device={device}"
+    #)
+    #if getattr(opt, 'use_contrastive', False):
+    #    print(
+    #        f"[model] contrastive_embedding_dim={opt.contrastive_embedding_dim}  "
+    #        f"margin={opt.contrastive_margin}  "
+    #        f"lambda={opt.contrastive_lambda}  "
+    #        f"mining={opt.contrastive_mining}"
+    #    )
 
     # Os pesos foram salvos com DataParallel (prefixo "module.").
     # Para inferência em device único removemos o DataParallel e stripamos o prefixo.
@@ -192,7 +192,7 @@ def load_model(opt):
         raw_sd = {k[len('module.'):]: v for k, v in raw_sd.items()}
     model.load_state_dict(raw_sd)
     model.eval()
-    print(f"[model] Pesos carregados de: {opt.saved_model}")
+    #print(f"[model] Pesos carregados de: {opt.saved_model}")
     return model, converter
 
 
@@ -576,7 +576,7 @@ if __name__ == '__main__':
     if opt.dataset:
         project_root = Path(__file__).resolve().parent
         opt.input = str(project_root / 'dataset' / 'test' / opt.dataset)
-        print(f"[dataset] Usando subpasta: {opt.input}")
+        print(f"\n\n[dataset] Usando subpasta: {opt.input}")
     elif not opt.input:
         print("[erro] Fornecer --input <caminho> ou --dataset <cars|cars_motors>.")
         sys.exit(1)
