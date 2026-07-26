@@ -35,8 +35,8 @@ while [ $i -lt ${#args[@]} ]; do
 done
 
 BASE_ARGS=(
-    --train_data          data_lmdb/rodosol/train/cars_motors
-    --valid_data          data_lmdb/rodosol/val/cars_motors
+    --train_data          data_lmdb/rodosol/train/cars
+    --valid_data          data_lmdb/rodosol/val/cars
     --select_data         '/'
     --batch_ratio         '1.0'
     --saved_model         saved_models/TPS-ResNet-BiLSTM-Attn.pth
@@ -57,7 +57,7 @@ BASE_ARGS=(
 
 if [ "$CONTRASTIVE" -eq 1 ]; then
     CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python train.py \
-        --exp_name contrastiveTRBA \
+        --exp_name CTRBA \
         "${BASE_ARGS[@]}" \
         --use_contrastive \
         --contrastive_margin  "$CONTRASTIVE_MARGIN" \
@@ -67,7 +67,7 @@ if [ "$CONTRASTIVE" -eq 1 ]; then
         ${RUN_NAME:+--run_name "$RUN_NAME"}
 else
     CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python train.py \
-        --exp_name contrastiveTRBA \
+        --exp_name CTRBA \
         "${BASE_ARGS[@]}" \
         ${RUN_NAME:+--run_name "$RUN_NAME"}
 fi
