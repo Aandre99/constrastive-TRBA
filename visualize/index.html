@@ -1,0 +1,2395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLflow Experiment Explorer | Contrastive vs Baseline</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <!-- PapaParse for CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- Plotly.js for Interactive Scatter Plots -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #070b12;
+            --bg-card: rgba(14, 22, 38, 0.75);
+            --bg-card-hover: rgba(20, 31, 53, 0.85);
+            --bg-header: rgba(7, 11, 18, 0.85);
+            --bg-input: rgba(7, 11, 18, 0.8);
+            --bg-modal: #0f172a;
+            --bg-toolbar: rgba(0, 0, 0, 0.35);
+            --bg-pill: rgba(255, 255, 255, 0.04);
+            --bg-pill-hover: rgba(255, 255, 255, 0.09);
+            --bg-row-hover: rgba(255, 255, 255, 0.03);
+            --bg-bar-track: rgba(255, 255, 255, 0.1);
+            --scrollbar-track: rgba(7, 11, 18, 0.8);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --border-medium: rgba(255, 255, 255, 0.15);
+            --border-highlight: rgba(0, 242, 254, 0.4);
+
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+
+            --ctr-color: #00f2fe;
+            --ctr-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            --ctr-bg: rgba(0, 242, 254, 0.12);
+
+            --base-color: #f59e0b;
+            --base-gradient: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            --base-bg: rgba(245, 158, 11, 0.12);
+
+            --success-color: #10b981;
+            --success-bg: rgba(16, 185, 129, 0.15);
+            --purple-accent: #8b5cf6;
+
+            --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="light"] {
+            --bg-main: #f0f4f8;
+            --bg-card: rgba(255, 255, 255, 0.85);
+            --bg-card-hover: rgba(255, 255, 255, 0.95);
+            --bg-header: rgba(255, 255, 255, 0.85);
+            --bg-input: rgba(255, 255, 255, 0.9);
+            --bg-modal: #ffffff;
+            --bg-toolbar: rgba(255, 255, 255, 0.9);
+            --bg-pill: rgba(15, 23, 42, 0.06);
+            --bg-pill-hover: rgba(15, 23, 42, 0.12);
+            --bg-row-hover: rgba(15, 23, 42, 0.04);
+            --bg-bar-track: rgba(15, 23, 42, 0.12);
+            --scrollbar-track: #f0f4f8;
+            --border-color: rgba(15, 23, 42, 0.12);
+            --border-subtle: rgba(15, 23, 42, 0.06);
+            --border-medium: rgba(15, 23, 42, 0.15);
+            --border-highlight: rgba(2, 132, 199, 0.4);
+
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+
+            --ctr-color: #0284c7;
+            --ctr-gradient: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+            --ctr-bg: rgba(2, 132, 199, 0.12);
+
+            --base-color: #d97706;
+            --base-gradient: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
+            --base-bg: rgba(217, 119, 6, 0.12);
+
+            --success-color: #059669;
+            --success-bg: rgba(5, 150, 105, 0.12);
+            --purple-accent: #7c3aed;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            background-image:
+                radial-gradient(circle at 15% 10%, rgba(0, 242, 254, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 85% 90%, rgba(245, 158, 11, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.04) 0%, transparent 60%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            padding-bottom: 60px;
+            overflow-x: hidden;
+        }
+
+        /* Scrollbar customization */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navbar / Header */
+        header {
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-header);
+            backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 16px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--ctr-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+            font-weight: 700;
+        }
+
+        .brand-text h1 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--text-primary);
+        }
+
+        .brand-text p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition-smooth);
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--ctr-bg);
+            border-color: rgba(0, 242, 254, 0.3);
+            color: var(--ctr-color);
+        }
+
+        .btn-primary:hover {
+            background: rgba(0, 242, 254, 0.2);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.25);
+        }
+
+        .file-upload-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-upload-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* KPI Ribbon / Summary Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 18px 20px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: var(--transition-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: transparent;
+            transition: var(--transition-smooth);
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--border-medium);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .kpi-card.kpi-ctr::before {
+            background: var(--ctr-gradient);
+        }
+
+        .kpi-card.kpi-base::before {
+            background: var(--base-gradient);
+        }
+
+        .kpi-card.kpi-gain::before {
+            background: linear-gradient(90deg, #10b981, #34d399);
+        }
+
+        .kpi-card.kpi-total::before {
+            background: linear-gradient(90deg, #8b5cf6, #c084fc);
+        }
+
+        .kpi-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            margin: 10px 0 4px 0;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .kpi-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Filter Panel */
+        .filter-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .filter-title {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-primary);
+        }
+
+        .filter-badge-info {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: var(--bg-pill-hover);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .pill-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .pill {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            background: var(--bg-pill);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            user-select: none;
+        }
+
+        .pill:hover {
+            background: var(--bg-pill-hover);
+            color: var(--text-primary);
+            border-color: var(--border-medium);
+        }
+
+        .pill.active {
+            background: rgba(0, 242, 254, 0.15);
+            border-color: var(--ctr-color);
+            color: var(--ctr-color);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+        }
+
+        .pill.active-base {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: var(--base-color);
+            color: var(--base-color);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
+        }
+
+        /* Main Chart Card */
+        .chart-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .chart-title h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-title p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .chart-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .control-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .select-input {
+            background: var(--bg-input);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: 500;
+            outline: none;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .select-input:hover,
+        .select-input:focus {
+            border-color: var(--ctr-color);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+        }
+
+        /* Chart Toolbar Controls */
+        .chart-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-toolbar);
+            border: 1px solid var(--border-color);
+            padding: 12px 18px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-toolbar {
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: var(--font-body);
+            background: var(--bg-pill);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-toolbar:hover {
+            background: var(--bg-pill-hover);
+            color: var(--text-primary);
+            border-color: var(--border-medium);
+        }
+
+        .btn-toolbar.active {
+            background: rgba(0, 242, 254, 0.15);
+            border-color: var(--ctr-color);
+            color: var(--ctr-color);
+            box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+        }
+
+        #plotly-chart {
+            width: 100%;
+            height: 520px;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Leaderboard Section */
+        .table-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .search-box {
+            position: relative;
+            min-width: 260px;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .search-box input {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            padding: 8px 14px 8px 38px;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 13px;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .search-box input:focus {
+            border-color: var(--ctr-color);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            background: var(--bg-header);
+            padding: 14px 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.6px;
+            border-bottom: 1px solid var(--border-medium);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background 0.15s;
+        }
+
+        tr:hover td {
+            background: var(--bg-row-hover);
+        }
+
+        tr.highlight-row td {
+            background: rgba(0, 242, 254, 0.12) !important;
+            animation: pulse-row 1.5s infinite;
+        }
+
+        @keyframes pulse-row {
+
+            0%,
+            100% {
+                background: rgba(0, 242, 254, 0.12);
+            }
+
+            50% {
+                background: rgba(0, 242, 254, 0.22);
+            }
+        }
+
+        .rank-cell {
+            font-weight: 700;
+            font-family: var(--font-mono);
+            width: 60px;
+        }
+
+        .rank-1 {
+            color: #fbbf24;
+            font-size: 15px;
+        }
+
+        .rank-2 {
+            color: #e2e8f0;
+            font-size: 15px;
+        }
+
+        .rank-3 {
+            color: #d97706;
+            font-size: 15px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+
+        .badge-ctr {
+            background: var(--ctr-bg);
+            color: var(--ctr-color);
+            border: 1px solid rgba(0, 242, 254, 0.3);
+        }
+
+        .badge-base {
+            background: var(--base-bg);
+            color: var(--base-color);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-status-finished {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+        }
+
+        .badge-status-running {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .acc-cell {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .acc-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .acc-bar-bg {
+            width: 60px;
+            height: 6px;
+            background: var(--bg-bar-track);
+            border-radius: 3px;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .acc-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #10b981, #00f2fe);
+        }
+
+        .param-pill {
+            display: inline-block;
+            background: var(--bg-pill);
+            border: 1px solid var(--border-color);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            margin-right: 4px;
+            margin-bottom: 2px;
+            color: var(--text-secondary);
+        }
+
+        .param-pill span {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .btn-icon {
+            background: var(--bg-pill);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-icon:hover {
+            background: rgba(0, 242, 254, 0.2);
+            border-color: var(--ctr-color);
+            color: var(--ctr-color);
+            transform: scale(1.05);
+        }
+
+        .btn-icon.active-anchor {
+            background: rgba(251, 191, 36, 0.2) !important;
+            border-color: #fbbf24 !important;
+            color: #fbbf24 !important;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+            transform: scale(1.08);
+        }
+
+        .compare-cell {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 14px;
+            text-align: center;
+            white-space: nowrap;
+            border-left: 1px dashed rgba(255, 255, 255, 0.15);
+            border-right: 1px dashed rgba(255, 255, 255, 0.15);
+        }
+
+        #comparison-banner {
+            background: linear-gradient(90deg, rgba(251, 191, 36, 0.15), rgba(0, 242, 254, 0.05));
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            padding: 12px 18px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Modal Inspection Drawer */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: var(--transition-smooth);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: var(--bg-modal);
+            border: 1px solid var(--border-highlight);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 650px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            transform: translateY(20px);
+            transition: var(--transition-smooth);
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-title h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .btn-close {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-close:hover {
+            color: var(--text-primary);
+            transform: rotate(90deg);
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            background: var(--bg-pill);
+            border: 1px solid var(--border-subtle);
+            padding: 12px 16px;
+            border-radius: 10px;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .detail-val {
+            font-size: 16px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        .detail-full {
+            grid-column: span 2;
+        }
+
+        .command-box {
+            background: #070b12;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: #38bdf8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .detail-full {
+                grid-column: span 1;
+            }
+        }
+
+        /* Upload / Welcome Screen */
+        .upload-screen-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 120px);
+            padding: 20px;
+        }
+
+        .upload-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px 32px;
+            max-width: 580px;
+            width: 100%;
+            text-align: center;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            transition: var(--transition-smooth);
+        }
+
+        .upload-icon-wrapper {
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            background: var(--ctr-bg);
+            color: var(--ctr-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            margin: 0 auto 20px auto;
+            border: 1px solid var(--border-highlight);
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+        }
+
+        .upload-card h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .upload-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 28px;
+        }
+
+        .upload-card p code {
+            background: var(--bg-pill);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            color: var(--ctr-color);
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border-medium);
+            border-radius: 16px;
+            padding: 36px 20px;
+            background: var(--bg-pill);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--ctr-color);
+            background: var(--ctr-bg);
+            transform: scale(1.01);
+        }
+
+        .drop-icon {
+            font-size: 44px;
+            color: var(--text-secondary);
+            transition: var(--transition-smooth);
+        }
+
+        .drop-zone:hover .drop-icon,
+        .drop-zone.dragover .drop-icon {
+            color: var(--ctr-color);
+            transform: translateY(-4px);
+        }
+
+        .drop-zone span {
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .drop-sub {
+            font-size: 12px !important;
+            color: var(--text-muted) !important;
+        }
+
+        .upload-status {
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: var(--bg-pill);
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="container header-content">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-chart-scatter"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>MLflow Experiment Visualizer</h1>
+                    <p>Análise exploratória de representações (Contrastive vs. Baseline)</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn" id="theme-toggle-btn" onclick="toggleTheme()"
+                    title="Alternar entre Tema Escuro e Tema Claro">
+                    <i class="fa-solid fa-sun" id="theme-icon" style="color: #fbbf24;"></i> <span id="theme-label">Tema
+                        Claro</span>
+                </button>
+                <div class="file-upload-wrapper">
+                    <button class="btn btn-primary" id="btn-upload-label">
+                        <i class="fa-solid fa-file-import"></i> Carregar CSV
+                    </button>
+                    <input type="file" id="csv-file-input" accept=".csv"
+                        title="Selecione um arquivo de exportação MLflow (runs.csv)">
+                </div>
+                <button class="btn"
+                    onclick="showUploadScreen('Selecione ou arraste um novo arquivo <b>runs.csv</b> para substituir os dados atuais.')"
+                    title="Abrir tela de carregamento (Drag & Drop)">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </button>
+                <button class="btn" id="btn-reset-all" title="Restaurar todos os filtros e zoom">
+                    <i class="fa-solid fa-rotate-right"></i> Resetar
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Upload / Drag & Drop Welcome Screen -->
+    <div id="upload-screen" class="upload-screen-container">
+        <div class="upload-card">
+            <div class="upload-icon-wrapper">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h2>Carregar Experimentos do MLflow</h2>
+            <p>Selecione ou arraste o arquivo <code>runs.csv</code> exportado do MLflow para iniciar a exploração e
+                visualização interativa.</p>
+
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-file-input').click();">
+                <i class="fa-solid fa-file-csv drop-icon"></i>
+                <span>Arraste e solte o arquivo <strong>runs.csv</strong> aqui</span>
+                <span class="drop-sub">ou clique para escolher um arquivo do seu computador</span>
+            </div>
+
+            <div class="upload-status" id="upload-status-msg">
+                <i class="fa-solid fa-spinner fa-spin"></i> Verificando carregamento automático via HTTP (runs.csv)...
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="container" id="dashboard-content" style="display: none;">
+
+        <!-- KPI Summary Grid -->
+        <section class="kpi-grid" id="kpi-section">
+            <div class="kpi-card kpi-total">
+                <div class="kpi-title"><span>Experimentos Exibidos</span> <i class="fa-solid fa-flask"></i></div>
+                <div class="kpi-value" id="kpi-count">-- / --</div>
+                <div class="kpi-sub" id="kpi-count-sub">Total do arquivo runs.csv</div>
+            </div>
+
+            <div class="kpi-card kpi-ctr">
+                <div class="kpi-title"><span>Melhor Acurácia (CTR)</span> <i class="fa-solid fa-bolt"></i></div>
+                <div class="kpi-value" id="kpi-best-ctr" style="color: var(--ctr-color);">--%</div>
+                <div class="kpi-sub" id="kpi-best-ctr-name">Nenhum modelo contrastivo filtrado</div>
+            </div>
+
+            <div class="kpi-card kpi-base">
+                <div class="kpi-title"><span>Melhor Acurácia (BASE)</span> <i class="fa-solid fa-anchor"></i></div>
+                <div class="kpi-value" id="kpi-best-base" style="color: var(--base-color);">--%</div>
+                <div class="kpi-sub" id="kpi-best-base-name">Nenhum baseline filtrado</div>
+            </div>
+
+            <div class="kpi-card kpi-gain">
+                <div class="kpi-title"><span>Ganho Contrastivo ($\Delta$)</span> <i
+                        class="fa-solid fa-arrow-trend-up"></i></div>
+                <div class="kpi-value" id="kpi-diff" style="color: var(--success-color);">--%</div>
+                <div class="kpi-sub" id="kpi-diff-sub">Diferença CTR vs Baseline</div>
+            </div>
+        </section>
+
+        <!-- Interactive Filter Panel -->
+        <section class="filter-section">
+            <div class="filter-header">
+                <div class="filter-title">
+                    <i class="fa-solid fa-filter" style="color: var(--ctr-color);"></i>
+                    <span>Filtros Interativos</span>
+                </div>
+                <div class="filter-badge-info" id="filter-status-text">
+                    Exibindo 100% dos dados
+                </div>
+            </div>
+
+            <div class="filter-grid">
+                <!-- Model Type Filter -->
+                <div class="filter-group">
+                    <div class="filter-label">
+                        <span>Tipo de Modelo</span>
+                        <span class="badge" style="background:rgba(255,255,255,0.05);">Modelo</span>
+                    </div>
+                    <div class="pill-group" id="pill-group-model">
+                        <div class="pill active" data-filter="model" data-val="all">Todos</div>
+                        <div class="pill" data-filter="model" data-val="ctr">⚡ Contrastivo (ctr)</div>
+                        <div class="pill" data-filter="model" data-val="base">⚓ Baseline (base)</div>
+                    </div>
+                </div>
+
+                <!-- Batch Size Filter -->
+                <div class="filter-group">
+                    <div class="filter-label">
+                        <span>Batch Size</span>
+                        <span class="param-pill"><span>batch_size</span></span>
+                    </div>
+                    <div class="pill-group" id="pill-group-batch_size">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Lambda Filter -->
+                <div class="filter-group">
+                    <div class="filter-label">
+                        <span>Contrastive Lambda ($\lambda$)</span>
+                        <span class="param-pill"><span>contrastive_lambda</span></span>
+                    </div>
+                    <div class="pill-group" id="pill-group-contrastive_lambda">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Margin Filter -->
+                <div class="filter-group">
+                    <div class="filter-label">
+                        <span>Contrastive Margin ($m$)</span>
+                        <span class="param-pill"><span>contrastive_margin</span></span>
+                    </div>
+                    <div class="pill-group" id="pill-group-contrastive_margin">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Num Iterations Filter -->
+                <div class="filter-group">
+                    <div class="filter-label">
+                        <span>Número de Iterações</span>
+                        <span class="param-pill"><span>num_iter</span></span>
+                    </div>
+                    <div class="pill-group" id="pill-group-num_iter">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Status Filter -->
+                <div class="filter-group">
+                    <div class="filter-label">
+                        <span>Status da Execução</span>
+                        <span class="param-pill"><span>Status</span></span>
+                    </div>
+                    <div class="pill-group" id="pill-group-status">
+                        <div class="pill active" data-filter="status" data-val="all">Todos</div>
+                        <div class="pill" data-filter="status" data-val="FINISHED">FINISHED</div>
+                        <div class="pill" data-filter="status" data-val="RUNNING">RUNNING</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Scatter Plot Section -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <h2><i class="fa-solid fa-chart-line" style="color: var(--ctr-color);"></i> Gráfico de Scatter Plot
+                        Interativo</h2>
+                    <p>Métrica principal ordenada no Eixo Y (<strong
+                            style="color: var(--text-primary);">accuracy</strong>). Explore relações variando o Eixo X e
+                        clique em qualquer ponto para inspecionar.</p>
+                </div>
+                <div class="chart-controls">
+                    <span class="control-label">Eixo X:</span>
+                    <select class="select-input" id="x-axis-select">
+                        <option value="num_iter" selected>Número de Iterações (num_iter)</option>
+                        <option value="batch_size">Batch Size</option>
+                        <option value="contrastive_lambda">Contrastive Lambda (λ)</option>
+                        <option value="contrastive_margin">Contrastive Margin (m)</option>
+                        <option value="valid_loss">Validation Loss (valid_loss)</option>
+                        <option value="norm_ED">Norm ED (norm_ED)</option>
+                        <option value="rank">Ranking pela Acurácia (1º ao Nº)</option>
+                    </select>
+
+                    <span class="control-label" style="margin-left: 8px;">Cor dos Pontos:</span>
+                    <select class="select-input" id="color-by-select">
+                        <option value="modelType" selected>Tipo de Modelo (CTR vs BASE)</option>
+                        <option value="accuracy">Gradiente de Acurácia</option>
+                        <option value="batch_size">Por Batch Size</option>
+                        <option value="contrastive_lambda">Por Lambda (λ)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Interactive Zoom & Dispersion Toolbar -->
+            <div class="chart-toolbar">
+                <div class="toolbar-group">
+                    <span class="toolbar-label"><i class="fa-solid fa-magnifying-glass"
+                            style="color: var(--ctr-color);"></i> Escala Y (Zoom):</span>
+                    <button class="btn-toolbar active" id="btn-zoom-focus"
+                        title="Foca o eixo Y apenas na faixa dos modelos principais (>90% acurácia), eliminando a distorção de execuções com falha">
+                        <i class="fa-solid fa-compress-arrows-alt"></i> Foco no Topo (94% - 100%)
+                    </button>
+                    <button class="btn-toolbar" id="btn-zoom-full"
+                        title="Exibe o gráfico completo de 0% a 100% no eixo Y">
+                        <i class="fa-solid fa-expand-arrows-alt"></i> Escala Total (0% - 100%)
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <span class="toolbar-label"><i class="fa-solid fa-sliders" style="color: #fbbf24;"></i> Otimização
+                        Visual:</span>
+                    <button class="btn-toolbar active" id="btn-toggle-jitter"
+                        title="Adiciona um leve desvio horizontal para separar e permitir o clique fácil em pontos que teriam exatamente o mesmo valor no eixo X">
+                        <i class="fa-solid fa-shuffle"></i> Espalhar Pontos (Jitter)
+                    </button>
+                    <button class="btn-toolbar" id="btn-toggle-labels"
+                        title="Exibe a porcentagem exata de acurácia acima de cada ponto no gráfico">
+                        <i class="fa-solid fa-tag"></i> Rótulos (Acurácia)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Plotly Chart Canvas -->
+            <div id="plotly-chart"></div>
+        </section>
+
+        <!-- Leaderboard Table Section -->
+        <section class="table-section">
+            <div class="table-header">
+                <div class="chart-title">
+                    <h2><i class="fa-solid fa-trophy" style="color: #fbbf24;"></i> Leaderboard dos Experimentos</h2>
+                    <p>Sempre ordenado da maior para a menor <strong
+                            style="color: var(--text-primary);">accuracy</strong> considerando os filtros selecionados
+                        acima.</p>
+                </div>
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-input" placeholder="Buscar por nome, run_id ou parâmetro...">
+                </div>
+            </div>
+
+            <!-- Comparison Active Banner -->
+            <div id="comparison-banner" style="display: none;"></div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Tipo</th>
+                            <th>Nome da Execução (Run Name)</th>
+                            <th>Acurácia (Accuracy)</th>
+                            <th id="th-compare-col" style="display: none; color: #fbbf24; white-space: nowrap;"><i
+                                    class="fa-solid fa-scale-balanced"></i> Δ vs Referência</th>
+                            <th>Combinação de Parâmetros Explicita</th>
+                            <th>Norm ED / Valid Loss</th>
+                            <th>Duração</th>
+                            <th style="text-align: center;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Dynamically populated -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Inspection Modal Drawer -->
+    <div class="modal-overlay" id="inspection-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span class="badge badge-ctr" id="modal-model-badge">CTR</span>
+                    <h3 id="modal-run-name">Nome da Execução</h3>
+                </div>
+                <button class="btn-close" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <div class="detail-label"><i class="fa-solid fa-trophy" style="color:#fbbf24;"></i> Acurácia
+                        Principal</div>
+                    <div class="detail-val" id="modal-acc" style="color: #10b981; font-size: 22px;">--%</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Best Accuracy</div>
+                    <div class="detail-val" id="modal-best-acc">--%</div>
+                </div>
+
+                <div class="detail-item detail-full"
+                    style="background: rgba(0, 242, 254, 0.05); border-color: rgba(0, 242, 254, 0.2);">
+                    <div class="detail-label" style="color: var(--ctr-color);"><i class="fa-solid fa-sliders"></i>
+                        Combinação de Parâmetros Explícita</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;" id="modal-params-container">
+                        <!-- Filled via JS -->
+                    </div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Batch Size</div>
+                    <div class="detail-val" id="modal-bs">--</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Número de Iterações (num_iter)</div>
+                    <div class="detail-val" id="modal-iter">--</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Contrastive Lambda ($\lambda$)</div>
+                    <div class="detail-val" id="modal-lambda">--</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Contrastive Margin ($m$)</div>
+                    <div class="detail-val" id="modal-margin">--</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Norm ED / Best Norm ED</div>
+                    <div class="detail-val" id="modal-norm-ed">-- / --</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Valid Loss / Train Loss</div>
+                    <div class="detail-val" id="modal-loss">-- / --</div>
+                </div>
+
+                <div class="detail-item">
+                    <div class="detail-label">Start Time</div>
+                    <div class="detail-val" id="modal-start" style="font-size: 13px;">--</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Duração / Status</div>
+                    <div class="detail-val" id="modal-dur" style="font-size: 13px;">--</div>
+                </div>
+
+                <div class="detail-item detail-full">
+                    <div class="detail-label">Run ID (MLflow)</div>
+                    <div class="command-box">
+                        <span id="modal-run-id">--</span>
+                        <button class="btn-icon" style="width:28px; height:28px; font-size:12px;"
+                            onclick="copyText(document.getElementById('modal-run-id').innerText, 'Run ID copiado!')"
+                            title="Copiar Run ID">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CSV DATA LOADING (No hardcoded fallback data) ---
+        // The application prompts the user to load runs.csv via upload screen or auto-fetches via HTTP server.
+
+
+        // --- 2. GLOBAL STATE ---
+        let allRuns = [];
+        let filteredRuns = [];
+        let zoomMode = 'focus'; // 'focus' | 'full'
+        let isJitterActive = true;
+        let showLabels = false;
+        let comparisonRunId = null;
+        let activeFilters = {
+            model: ['all'],
+            batch_size: ['all'],
+            contrastive_lambda: ['all'],
+            contrastive_margin: ['all'],
+            num_iter: ['all'],
+            status: ['all'],
+            search: ''
+        };
+
+        // --- 3. INITIALIZATION ---
+        document.addEventListener("DOMContentLoaded", () => {
+            initEventListeners();
+            loadCSVData();
+        });
+
+        function initEventListeners() {
+            // CSV File Input (upload new CSV)
+            document.getElementById('csv-file-input').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    parseAndInitialize(event.target.result, file.name);
+                };
+                reader.readAsText(file);
+            });
+
+            // Drag and Drop Zone
+            const dropZone = document.getElementById('drop-zone');
+            if (dropZone) {
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropZone.classList.add('dragover');
+                    }, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropZone.classList.remove('dragover');
+                    }, false);
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    if (files && files[0]) {
+                        const file = files[0];
+                        if (!file.name.endsWith('.csv')) {
+                            alert("Por favor, selecione um arquivo no formato .csv");
+                            return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            parseAndInitialize(event.target.result, file.name);
+                        };
+                        reader.readAsText(file);
+                    }
+                }, false);
+            }
+
+            // Search box input
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                activeFilters.search = e.target.value.toLowerCase().trim();
+                applyFilters();
+            });
+
+            // Reset all buttons
+            document.getElementById('btn-reset-all').addEventListener('click', () => {
+                resetAllFilters();
+            });
+
+            // X-Axis Selector
+            document.getElementById('x-axis-select').addEventListener('change', () => {
+                renderChart();
+            });
+
+            // Color By Selector
+            document.getElementById('color-by-select').addEventListener('change', () => {
+                renderChart();
+            });
+
+            // Toolbar Controls
+            document.getElementById('btn-zoom-focus').addEventListener('click', () => {
+                zoomMode = 'focus';
+                document.getElementById('btn-zoom-focus').classList.add('active');
+                document.getElementById('btn-zoom-full').classList.remove('active');
+                renderChart();
+            });
+            document.getElementById('btn-zoom-full').addEventListener('click', () => {
+                zoomMode = 'full';
+                document.getElementById('btn-zoom-full').classList.add('active');
+                document.getElementById('btn-zoom-focus').classList.remove('active');
+                renderChart();
+            });
+            document.getElementById('btn-toggle-jitter').addEventListener('click', (e) => {
+                isJitterActive = !isJitterActive;
+                e.currentTarget.classList.toggle('active', isJitterActive);
+                renderChart();
+            });
+            document.getElementById('btn-toggle-labels').addEventListener('click', (e) => {
+                showLabels = !showLabels;
+                e.currentTarget.classList.toggle('active', showLabels);
+                renderChart();
+            });
+
+            // Modal Close
+            document.getElementById('btn-close-modal').addEventListener('click', closeModal);
+            document.getElementById('inspection-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'inspection-modal') closeModal();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeModal();
+            });
+        }
+
+        // --- 4. CSV LOADING & PARSING ---
+        function loadCSVData() {
+            // First try fetching runs.csv via HTTP (works when hosted or in dev server)
+            fetch('runs.csv')
+                .then(res => {
+                    if (!res.ok) throw new Error("Fetch failed");
+                    return res.text();
+                })
+                .then(csvText => {
+                    console.log("Loaded runs.csv via fetch.");
+                    parseAndInitialize(csvText, "runs.csv (HTTP)");
+                })
+                .catch(err => {
+                    console.log("Could not auto-fetch runs.csv. Waiting for user upload via UI.", err);
+                    const statusEl = document.getElementById('upload-status-msg');
+                    if (statusEl) {
+                        statusEl.innerHTML = `<i class="fa-solid fa-circle-info" style="color: var(--base-color);"></i> Nenhum arquivo carregado automaticamente. Por favor, selecione ou arraste seu arquivo <b>runs.csv</b> para começar.`;
+                    }
+                });
+        }
+
+        function showUploadScreen(msg) {
+            const uploadScreen = document.getElementById('upload-screen');
+            const dashboard = document.getElementById('dashboard-content');
+            if (uploadScreen) uploadScreen.style.display = 'flex';
+            if (dashboard) dashboard.style.display = 'none';
+            if (msg) {
+                const statusEl = document.getElementById('upload-status-msg');
+                if (statusEl) statusEl.innerHTML = msg;
+            }
+        }
+
+        function parseAndInitialize(csvText, sourceName = "runs.csv") {
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    allRuns = results.data.map((row, index) => normalizeRow(row, index)).filter(r => r !== null);
+                    console.log(`Parsed ${allRuns.length} experiments successfully.`);
+                    if (allRuns.length === 0) {
+                        alert("Nenhum experimento válido encontrado no arquivo CSV.");
+                        return;
+                    }
+
+                    // Switch from upload screen to dashboard
+                    const uploadScreen = document.getElementById('upload-screen');
+                    const dashboard = document.getElementById('dashboard-content');
+                    if (uploadScreen) uploadScreen.style.display = 'none';
+                    if (dashboard) dashboard.style.display = 'block';
+
+                    // Update header label
+                    const uploadBtn = document.getElementById('btn-upload-label');
+                    if (uploadBtn) {
+                        uploadBtn.innerHTML = `<i class="fa-solid fa-check"></i> ${sourceName}`;
+                    }
+
+                    buildFilterPills();
+                    applyFilters();
+                },
+                error: (err) => {
+                    alert("Erro ao ler o arquivo CSV: " + err.message);
+                }
+            });
+        }
+
+        function normalizeRow(row, index) {
+            const name = row['Name'] || row['run_name'] || `Run #${index + 1}`;
+            if (!name || name.trim() === '') return null;
+
+            const isCtr = String(row['use_contrastive']).toLowerCase() === 'true' || name.startsWith('ctr');
+            const modelType = isCtr ? 'ctr' : 'base';
+            const modelLabel = isCtr ? 'Contrastivo (ctr)' : 'Baseline (base)';
+
+            const accVal = parseFloat(row['accuracy']);
+            const accuracy = !isNaN(accVal) ? accVal : null;
+
+            const batchSize = row['batch_size'] !== undefined && row['batch_size'] !== '' ? String(row['batch_size']) : 'N/A';
+            const contrastiveLambda = row['contrastive_lambda'] !== undefined && row['contrastive_lambda'] !== '' ? String(row['contrastive_lambda']) : 'N/A';
+            const contrastiveMargin = row['contrastive_margin'] !== undefined && row['contrastive_margin'] !== '' ? String(row['contrastive_margin']) : 'N/A';
+            const numIter = row['num_iter'] !== undefined && row['num_iter'] !== '' ? String(row['num_iter']) : 'N/A';
+
+            return {
+                id: row['Run ID'] || String(index + 1),
+                name: name,
+                modelType: modelType, // 'ctr' | 'base'
+                modelLabel: modelLabel,
+                status: row['Status'] || 'UNKNOWN',
+                accuracy: accuracy,
+                bestAccuracy: parseFloat(row['best_accuracy']) || null,
+                batchSize: batchSize,
+                contrastiveLambda: contrastiveLambda,
+                contrastiveMargin: contrastiveMargin,
+                numIter: numIter,
+                duration: row['Duration'] || '-',
+                startTime: row['Start Time'] || '-',
+                normED: parseFloat(row['norm_ED']) || null,
+                validLoss: parseFloat(row['valid_loss']) || null,
+                trainLoss: parseFloat(row['train_loss']) || null,
+                contrastiveLoss: parseFloat(row['contrastive_loss']) || null,
+                raw: row
+            };
+        }
+
+        // --- 5. DYNAMIC FILTER PILLS GENERATION ---
+        function buildFilterPills() {
+            const params = ['batch_size', 'contrastive_lambda', 'contrastive_margin', 'num_iter'];
+
+            params.forEach(param => {
+                const groupEl = document.getElementById(`pill-group-${param}`);
+                if (!groupEl) return;
+
+                // Extract unique values and sort numerically if possible
+                const uniqueVals = [...new Set(allRuns.map(r => r[param === 'batch_size' ? 'batchSize' : param === 'contrastive_lambda' ? 'contrastiveLambda' : param === 'contrastive_margin' ? 'contrastiveMargin' : 'numIter']))];
+
+                uniqueVals.sort((a, b) => {
+                    const numA = parseFloat(a);
+                    const numB = parseFloat(b);
+                    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                    return a.localeCompare(b);
+                });
+
+                groupEl.innerHTML = `<div class="pill active" data-filter="${param}" data-val="all">Todos</div>`;
+
+                uniqueVals.forEach(val => {
+                    if (val === 'N/A' || val === 'undefined') return;
+                    const pill = document.createElement('div');
+                    pill.className = 'pill';
+                    pill.setAttribute('data-filter', param);
+                    pill.setAttribute('data-val', val);
+                    pill.innerText = val;
+                    groupEl.appendChild(pill);
+                });
+            });
+
+            // Bind click listeners to all pills
+            document.querySelectorAll('.pill').forEach(pill => {
+                pill.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    const filterKey = target.getAttribute('data-filter');
+                    const val = target.getAttribute('data-val');
+
+                    handlePillClick(filterKey, val);
+                });
+            });
+        }
+
+        function handlePillClick(filterKey, val) {
+            const currentList = activeFilters[filterKey];
+
+            if (val === 'all') {
+                activeFilters[filterKey] = ['all'];
+            } else {
+                // If 'all' was previously selected, remove it
+                if (currentList.includes('all')) {
+                    activeFilters[filterKey] = [val];
+                } else {
+                    // Toggle selection
+                    const idx = currentList.indexOf(val);
+                    if (idx > -1) {
+                        currentList.splice(idx, 1);
+                        if (currentList.length === 0) activeFilters[filterKey] = ['all'];
+                    } else {
+                        currentList.push(val);
+                    }
+                }
+            }
+
+            updatePillUI(filterKey);
+            applyFilters();
+        }
+
+        function updatePillUI(filterKey) {
+            const selectedVals = activeFilters[filterKey];
+            document.querySelectorAll(`.pill[data-filter="${filterKey}"]`).forEach(pill => {
+                const val = pill.getAttribute('data-val');
+                if (selectedVals.includes(val)) {
+                    if (filterKey === 'model' && val === 'base') {
+                        pill.classList.add('active-base');
+                        pill.classList.remove('active');
+                    } else {
+                        pill.classList.add('active');
+                        pill.classList.remove('active-base');
+                    }
+                } else {
+                    pill.classList.remove('active', 'active-base');
+                }
+            });
+        }
+
+        function resetAllFilters() {
+            activeFilters = {
+                model: ['all'],
+                batch_size: ['all'],
+                contrastive_lambda: ['all'],
+                contrastive_margin: ['all'],
+                num_iter: ['all'],
+                status: ['all'],
+                search: ''
+            };
+            document.getElementById('search-input').value = '';
+
+            Object.keys(activeFilters).forEach(key => {
+                if (key !== 'search') updatePillUI(key);
+            });
+
+            applyFilters();
+        }
+
+        // --- 6. FILTERING & SORTING LOGIC ---
+        function applyFilters() {
+            filteredRuns = allRuns.filter(run => {
+                // 1. Model Type
+                if (!activeFilters.model.includes('all') && !activeFilters.model.includes(run.modelType)) return false;
+
+                // 2. Status
+                if (!activeFilters.status.includes('all') && !activeFilters.status.includes(run.status)) return false;
+
+                // 3. Batch Size
+                if (!activeFilters.batch_size.includes('all') && !activeFilters.batch_size.includes(run.batchSize)) return false;
+
+                // 4. Lambda
+                if (!activeFilters.contrastive_lambda.includes('all') && !activeFilters.contrastive_lambda.includes(run.contrastiveLambda)) return false;
+
+                // 5. Margin
+                if (!activeFilters.contrastive_margin.includes('all') && !activeFilters.contrastive_margin.includes(run.contrastiveMargin)) return false;
+
+                // 6. Num Iter
+                if (!activeFilters.num_iter.includes('all') && !activeFilters.num_iter.includes(run.numIter)) return false;
+
+                // 7. Search text
+                if (activeFilters.search !== '') {
+                    const matchName = run.name.toLowerCase().includes(activeFilters.search);
+                    const matchId = run.id.toLowerCase().includes(activeFilters.search);
+                    const matchParams = `${run.batchSize} ${run.contrastiveLambda} ${run.contrastiveMargin} ${run.numIter}`.includes(activeFilters.search);
+                    if (!matchName && !matchId && !matchParams) return false;
+                }
+
+                return true;
+            });
+
+            // ALWAYS order by accuracy DESCENDING (from highest to lowest)
+            filteredRuns.sort((a, b) => {
+                const accA = a.accuracy !== null ? a.accuracy : -999;
+                const accB = b.accuracy !== null ? b.accuracy : -999;
+                return accB - accA;
+            });
+
+            // Assign dynamic rank in the filtered set
+            filteredRuns.forEach((run, index) => {
+                run.rank = index + 1;
+            });
+
+            updateKPIs();
+            renderChart();
+            renderTable();
+
+            const pct = Math.round((filteredRuns.length / (allRuns.length || 1)) * 100);
+            document.getElementById('filter-status-text').innerText = `Exibindo ${filteredRuns.length} de ${allRuns.length} (${pct}%)`;
+        }
+
+        // --- 7. KPI CARDS UPDATE ---
+        function updateKPIs() {
+            document.getElementById('kpi-count').innerText = `${filteredRuns.length} / ${allRuns.length}`;
+
+            const ctrRuns = filteredRuns.filter(r => r.modelType === 'ctr' && r.accuracy !== null);
+            const baseRuns = filteredRuns.filter(r => r.modelType === 'base' && r.accuracy !== null);
+
+            const bestCtr = ctrRuns.length > 0 ? ctrRuns[0] : null;
+            const bestBase = baseRuns.length > 0 ? baseRuns[0] : null;
+
+            const bestCtrEl = document.getElementById('kpi-best-ctr');
+            const bestCtrNameEl = document.getElementById('kpi-best-ctr-name');
+            if (bestCtr) {
+                bestCtrEl.innerText = `${bestCtr.accuracy.toFixed(2)}%`;
+                bestCtrNameEl.innerText = bestCtr.name;
+                bestCtrNameEl.title = bestCtr.name;
+            } else {
+                bestCtrEl.innerText = '--%';
+                bestCtrNameEl.innerText = 'Nenhum contrastivo filtrado';
+            }
+
+            const bestBaseEl = document.getElementById('kpi-best-base');
+            const bestBaseNameEl = document.getElementById('kpi-best-base-name');
+            if (bestBase) {
+                bestBaseEl.innerText = `${bestBase.accuracy.toFixed(2)}%`;
+                bestBaseNameEl.innerText = bestBase.name;
+                bestBaseNameEl.title = bestBase.name;
+            } else {
+                bestBaseEl.innerText = '--%';
+                bestBaseNameEl.innerText = 'Nenhum baseline filtrado';
+            }
+
+            const diffEl = document.getElementById('kpi-diff');
+            const diffSubEl = document.getElementById('kpi-diff-sub');
+            if (bestCtr && bestBase) {
+                const diff = bestCtr.accuracy - bestBase.accuracy;
+                const sign = diff >= 0 ? '+' : '';
+                diffEl.innerText = `${sign}${diff.toFixed(2)}%`;
+                diffEl.style.color = diff >= 0 ? 'var(--success-color)' : '#f43f5e';
+                diffSubEl.innerText = `Ganho sobre o melhor baseline`;
+            } else {
+                diffEl.innerText = '--%';
+                diffEl.style.color = 'var(--text-muted)';
+                diffSubEl.innerText = `Requer ambos CTR e BASE listados`;
+            }
+        }
+
+        // --- 8. PLOTLY SCATTER PLOT RENDERER ---
+        function renderChart() {
+            const xAxisKey = document.getElementById('x-axis-select').value;
+            const colorBy = document.getElementById('color-by-select').value;
+
+            const ctrRuns = filteredRuns.filter(r => r.modelType === 'ctr' && r.accuracy !== null);
+            const baseRuns = filteredRuns.filter(r => r.modelType === 'base' && r.accuracy !== null);
+
+            const buildTrace = (runs, modelName, markerColor, markerSymbol, isBase) => {
+                const xVals = runs.map(r => {
+                    let baseVal = 0;
+                    if (xAxisKey === 'num_iter') baseVal = parseFloat(r.numIter) || 0;
+                    else if (xAxisKey === 'batch_size') baseVal = parseFloat(r.batchSize) || 0;
+                    else if (xAxisKey === 'contrastive_lambda') baseVal = parseFloat(r.contrastiveLambda) || 0;
+                    else if (xAxisKey === 'contrastive_margin') baseVal = parseFloat(r.contrastiveMargin) || 0;
+                    else if (xAxisKey === 'valid_loss') baseVal = r.validLoss !== null ? r.validLoss : 0;
+                    else if (xAxisKey === 'norm_ED') baseVal = r.normED !== null ? r.normED : 0;
+                    else if (xAxisKey === 'rank') return r.rank;
+
+                    // Apply intelligent Jitter if enabled on discrete columns to prevent point overlapping
+                    if (isJitterActive && ['num_iter', 'batch_size', 'contrastive_lambda', 'contrastive_margin'].includes(xAxisKey)) {
+                        const jitterScale = {
+                            num_iter: 350,
+                            batch_size: 1.8,
+                            contrastive_lambda: 0.012,
+                            contrastive_margin: 0.012
+                        }[xAxisKey] || 0.01;
+
+                        // Use rank and run ID hash to create deterministic, readable spread
+                        const hash = r.id.charCodeAt(0) + r.id.charCodeAt(r.id.length - 1);
+                        const spreadFactor = ((hash % 7) - 3) * 0.28 + ((r.rank % 5) - 2) * 0.15;
+                        return baseVal + (spreadFactor * jitterScale);
+                    }
+                    return baseVal;
+                });
+
+                const yVals = runs.map(r => r.accuracy);
+
+                let colors = markerColor;
+                if (colorBy === 'accuracy') {
+                    colors = yVals;
+                } else if (colorBy === 'batch_size') {
+                    colors = runs.map(r => parseFloat(r.batchSize) || 0);
+                } else if (colorBy === 'contrastive_lambda') {
+                    colors = runs.map(r => parseFloat(r.contrastiveLambda) || 0);
+                }
+
+                return {
+                    x: xVals,
+                    y: yVals,
+                    mode: showLabels ? 'markers+text' : 'markers',
+                    text: showLabels ? runs.map(r => `${r.accuracy.toFixed(1)}%`) : undefined,
+                    textposition: 'top center',
+                    textfont: {
+                        family: 'JetBrains Mono, monospace',
+                        size: 11,
+                        color: document.documentElement.getAttribute('data-theme') === 'light' ? '#0f172a' : '#e2e8f0'
+                    },
+                    name: modelName,
+                    customdata: runs,
+                    marker: {
+                        size: isBase ? 15 : 16,
+                        symbol: markerSymbol,
+                        color: colors,
+                        colorscale: colorBy !== 'modelType' ? 'Viridis' : undefined,
+                        showscale: colorBy !== 'modelType' && !isBase,
+                        line: {
+                            color: '#ffffff',
+                            width: 1.8
+                        },
+                        opacity: 0.95
+                    },
+                    hovertemplate: `
+<b>%{customdata.name}</b><br>
+<span style="color:#10b981;">●</span> <b>Acurácia: %{customdata.accuracy:.2f}%</b> (Rank: #%{customdata.rank})<br>
+<b>Tipo:</b> %{customdata.modelLabel}<br>
+<br>
+<b><u>Combinação de Parâmetros Explicita:</u></b><br>
+• <b>Batch Size:</b> %{customdata.batchSize}<br>
+• <b>Lambda (λ):</b> %{customdata.contrastiveLambda}<br>
+• <b>Margin (m):</b> %{customdata.contrastiveMargin}<br>
+• <b>Iterações (num_iter):</b> %{customdata.numIter}<br>
+<br>
+<i>Valid Loss: %{customdata.validLoss} | Duração: %{customdata.duration}</i>
+<extra></extra>`
+                };
+            };
+
+            const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+            const ctrColor = isLight ? '#0284c7' : '#00f2fe';
+            const baseColor = isLight ? '#d97706' : '#f59e0b';
+            const traceCtr = buildTrace(ctrRuns, '⚡ Contrastivo (ctr)', ctrColor, 'circle', false);
+            const traceBase = buildTrace(baseRuns, '⚓ Baseline (base)', baseColor, 'square', true);
+
+            const xAxisLabels = {
+                num_iter: 'Número de Iterações (num_iter)',
+                batch_size: 'Batch Size',
+                contrastive_lambda: 'Contrastive Lambda (λ)',
+                contrastive_margin: 'Contrastive Margin (m)',
+                valid_loss: 'Validation Loss (valid_loss)',
+                norm_ED: 'Normalized Edit Distance (norm_ED)',
+                rank: 'Ranking de Acurácia (1º ao Nº)'
+            };
+
+            // Calculate Smart Y-Axis Zoom Range
+            let yAxisRange = undefined;
+            if (zoomMode === 'focus') {
+                const validRuns = filteredRuns.filter(r => r.accuracy !== null && r.accuracy > 70);
+                if (validRuns.length > 0) {
+                    const minAcc = Math.min(...validRuns.map(r => r.accuracy));
+                    const maxAcc = Math.max(...validRuns.map(r => r.accuracy));
+                    const pad = Math.max(0.3, (maxAcc - minAcc) * 0.12);
+                    yAxisRange = [Math.max(0, minAcc - pad), Math.min(100.5, maxAcc + pad)];
+                }
+            } else {
+                yAxisRange = [0, 102];
+            }
+
+            // Check reference run for comparison line
+            const refRun = comparisonRunId ? allRuns.find(r => r.id === comparisonRunId) : null;
+
+            const plotBg = isLight ? 'rgba(255, 255, 255, 0.6)' : 'rgba(7, 11, 18, 0.4)';
+            const fontColor = isLight ? '#0f172a' : '#f8fafc';
+            const gridColor = isLight ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.06)';
+            const zeroLineColor = isLight ? 'rgba(15, 23, 42, 0.2)' : 'rgba(255, 255, 255, 0.15)';
+            const legendBg = isLight ? 'rgba(255, 255, 255, 0.85)' : 'rgba(15, 23, 42, 0.8)';
+            const legendBorder = isLight ? 'rgba(15, 23, 42, 0.15)' : 'rgba(255, 255, 255, 0.1)';
+            const hoverBg = isLight ? '#ffffff' : '#0f172a';
+            const hoverBorder = isLight ? '#0284c7' : '#38bdf8';
+            const hoverFontColor = isLight ? '#0f172a' : '#ffffff';
+            const annotationBg = isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+
+            const layout = {
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: plotBg,
+                font: {
+                    family: 'Outfit, sans-serif',
+                    color: fontColor,
+                    size: 13
+                },
+                margin: { t: 25, r: 20, b: 65, l: 70 },
+                dragmode: 'zoom',
+                hovermode: 'closest',
+                xaxis: {
+                    title: { text: `<b>${xAxisLabels[xAxisKey]} ${isJitterActive && ['num_iter', 'batch_size', 'contrastive_lambda', 'contrastive_margin'].includes(xAxisKey) ? '(com Jitter ativo)' : ''}</b>`, font: { size: 14 } },
+                    gridcolor: gridColor,
+                    zerolinecolor: zeroLineColor,
+                    autorange: xAxisKey === 'rank' ? 'reversed' : true
+                },
+                yaxis: {
+                    title: { text: '<b>Accuracy (%)</b>', font: { size: 14 } },
+                    gridcolor: gridColor,
+                    zerolinecolor: zeroLineColor,
+                    hoverformat: '.2f',
+                    range: yAxisRange,
+                    autorange: yAxisRange === undefined
+                },
+                shapes: refRun && refRun.accuracy !== null ? [
+                    {
+                        type: 'line',
+                        xref: 'paper',
+                        x0: 0,
+                        x1: 1,
+                        yref: 'y',
+                        y0: refRun.accuracy,
+                        y1: refRun.accuracy,
+                        line: {
+                            color: '#fbbf24',
+                            width: 2,
+                            dash: 'dashdot'
+                        }
+                    }
+                ] : [],
+                annotations: refRun && refRun.accuracy !== null ? [
+                    {
+                        xref: 'paper',
+                        x: 0.99,
+                        yref: 'y',
+                        y: refRun.accuracy,
+                        text: `🎯 Referência: ${refRun.name} (${refRun.accuracy.toFixed(2)}%)`,
+                        showarrow: false,
+                        font: {
+                            family: 'Outfit, sans-serif',
+                            size: 12,
+                            color: '#fbbf24'
+                        },
+                        bgcolor: annotationBg,
+                        bordercolor: '#fbbf24',
+                        borderwidth: 1,
+                        borderpad: 5,
+                        xanchor: 'right',
+                        yanchor: 'bottom'
+                    }
+                ] : [],
+                hoverlabel: {
+                    bgcolor: hoverBg,
+                    bordercolor: hoverBorder,
+                    font: { family: 'Outfit, sans-serif', size: 13, color: hoverFontColor }
+                },
+                legend: {
+                    orientation: 'h',
+                    yanchor: 'bottom',
+                    y: 1.02,
+                    xanchor: 'right',
+                    x: 1,
+                    bgcolor: legendBg,
+                    bordercolor: legendBorder,
+                    borderwidth: 1
+                }
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                scrollZoom: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            Plotly.newPlot('plotly-chart', [traceCtr, traceBase], layout, config);
+
+            // Bind Click Event on Chart Points
+            const chartEl = document.getElementById('plotly-chart');
+            chartEl.removeAllListeners && chartEl.removeAllListeners('plotly_click');
+            chartEl.on('plotly_click', (data) => {
+                if (data.points && data.points.length > 0) {
+                    const clickedRun = data.points[0].customdata;
+                    highlightRowInTable(clickedRun.id);
+                    openModal(clickedRun);
+                }
+            });
+        }
+
+        // --- 9. LEADERBOARD TABLE RENDERER ---
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            if (filteredRuns.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 40px; color: var(--text-muted);">Nenhum experimento encontrado com os filtros e busca selecionados.</td></tr>`;
+                return;
+            }
+
+            // Check active comparison reference
+            const refRun = comparisonRunId ? allRuns.find(r => r.id === comparisonRunId) : null;
+            const compareColTh = document.getElementById('th-compare-col');
+            const bannerEl = document.getElementById('comparison-banner');
+
+            if (refRun) {
+                if (compareColTh) compareColTh.style.display = '';
+                if (bannerEl) {
+                    bannerEl.style.display = 'flex';
+                    bannerEl.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; flex-wrap: wrap;">
+              <span class="badge" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24;"><i class="fa-solid fa-bullseye"></i> REFERÊNCIA ATIVA</span>
+              <span style="color: #f8fafc;">Ancorado na linha: <strong style="color: #fbbf24; font-size:15px;">${refRun.name}</strong> (${refRun.accuracy !== null ? refRun.accuracy.toFixed(2) + '%' : 'N/A'})</span>
+              <span style="color: var(--text-muted); font-size: 13px;">— A coluna <strong style="color: #fbbf24;">Δ vs Referência</strong> exibe o incremento/diferença de acurácia com as demais execuções.</span>
+            </div>
+            <button class="btn-toolbar" style="background: rgba(244, 63, 94, 0.15); border-color: #f43f5e; color: #f43f5e;" onclick="clearComparison()">
+              <i class="fa-solid fa-xmark"></i> Limpar Comparação
+            </button>
+          `;
+                }
+            } else {
+                if (compareColTh) compareColTh.style.display = 'none';
+                if (bannerEl) bannerEl.style.display = 'none';
+            }
+
+            // Max accuracy in filtered set for progress bar scaling
+            const maxAcc = filteredRuns[0].accuracy || 100;
+            const minAcc = Math.min(...filteredRuns.map(r => r.accuracy || 0));
+
+            filteredRuns.forEach(run => {
+                const tr = document.createElement('tr');
+                tr.id = `row-${run.id}`;
+                if (refRun && run.id === refRun.id) {
+                    tr.style.background = 'rgba(251, 191, 36, 0.07)';
+                    tr.style.outline = '1px solid rgba(251, 191, 36, 0.35)';
+                }
+
+                // Rank format
+                let rankHtml = `#${run.rank}`;
+                if (run.rank === 1) rankHtml = `<span class="rank-1"><i class="fa-solid fa-medal"></i> #1</span>`;
+                else if (run.rank === 2) rankHtml = `<span class="rank-2"><i class="fa-solid fa-medal"></i> #2</span>`;
+                else if (run.rank === 3) rankHtml = `<span class="rank-3"><i class="fa-solid fa-medal"></i> #3</span>`;
+
+                // Model badge
+                const badgeClass = run.modelType === 'ctr' ? 'badge-ctr' : 'badge-base';
+                const badgeIcon = run.modelType === 'ctr' ? 'fa-bolt' : 'fa-anchor';
+                const badgeHtml = `<span class="badge ${badgeClass}"><i class="fa-solid ${badgeIcon}"></i> ${run.modelType.toUpperCase()}</span>`;
+
+                // Accuracy cell with progress bar
+                const accDisplay = run.accuracy !== null ? `${run.accuracy.toFixed(2)}%` : 'N/A';
+                const barPct = run.accuracy !== null ? Math.max(10, ((run.accuracy - (minAcc * 0.9)) / (maxAcc - (minAcc * 0.9) || 1)) * 100) : 0;
+
+                // Comparison cell HTML
+                let compareHtml = '';
+                if (refRun) {
+                    if (run.id === refRun.id) {
+                        compareHtml = `<td class="compare-cell"><span class="badge" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid #fbbf24;"><i class="fa-solid fa-bullseye"></i> REFERÊNCIA (0.00%)</span></td>`;
+                    } else if (run.accuracy !== null && refRun.accuracy !== null) {
+                        const diff = run.accuracy - refRun.accuracy;
+                        const sign = diff > 0 ? '+' : '';
+                        const color = diff > 0 ? '#10b981' : diff < 0 ? '#f43f5e' : 'var(--text-secondary)';
+                        const icon = diff > 0 ? '▲' : diff < 0 ? '▼' : '●';
+                        const bgHighlight = diff > 0 ? 'rgba(16, 185, 129, 0.08)' : diff < 0 ? 'rgba(244, 63, 94, 0.08)' : 'transparent';
+                        compareHtml = `<td class="compare-cell" style="background: ${bgHighlight};"><span style="color: ${color}; font-size: 14px;">${sign}${diff.toFixed(2)}% ${icon}</span></td>`;
+                    } else {
+                        compareHtml = `<td class="compare-cell"><span style="color: var(--text-muted);">N/A</span></td>`;
+                    }
+                }
+
+                // Explicit parameter pills
+                const paramsHtml = `
+          <div class="param-pill">BS: <span>${run.batchSize}</span></div>
+          <div class="param-pill">λ: <span>${run.contrastiveLambda}</span></div>
+          <div class="param-pill">Margin: <span>${run.contrastiveMargin}</span></div>
+          <div class="param-pill">Iter: <span>${run.numIter}</span></div>
+        `;
+
+                // Status badge
+                let statusHtml = `<span class="badge badge-status-finished">${run.status}</span>`;
+                if (run.status === 'RUNNING') {
+                    statusHtml = `<span class="badge badge-status-running"><i class="fa-solid fa-spinner fa-spin"></i> ${run.status}</span>`;
+                }
+
+                tr.innerHTML = `
+          <td class="rank-cell">${rankHtml}</td>
+          <td>${badgeHtml}</td>
+          <td>
+            <div style="font-weight: 600; color: var(--text-primary);">${run.name}</div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top:2px;">ID: ${run.id.slice(0, 10)}...</div>
+          </td>
+          <td class="acc-cell">
+            <div class="acc-wrapper">
+              <span>${accDisplay}</span>
+              <div class="acc-bar-bg"><div class="acc-bar-fill" style="width: ${barPct}%;"></div></div>
+            </div>
+          </td>
+          ${compareHtml}
+          <td>${paramsHtml}</td>
+          <td style="font-family: var(--font-mono); font-size:12px;">
+            <div>ED: <strong style="color: var(--text-primary);">${run.normED !== null ? run.normED.toFixed(4) : '-'}</strong></div>
+            <div style="color:var(--text-secondary); margin-top:2px;">Loss: ${run.validLoss !== null ? run.validLoss.toFixed(4) : '-'}</div>
+          </td>
+          <td style="font-family: var(--font-mono); font-size:12px;">
+            <div>${run.duration}</div>
+            <div style="margin-top:4px;">${statusHtml}</div>
+          </td>
+          <td style="text-align: center; white-space: nowrap;">
+            <button class="btn-icon ${run.id === comparisonRunId ? 'active-anchor' : ''}" style="${run.id === comparisonRunId ? 'color: #fbbf24; border-color: #fbbf24; background: rgba(251, 191, 36, 0.15);' : ''}" title="${run.id === comparisonRunId ? 'Remover âncora de comparação' : 'Ancorar para comparar incremento de acurácia (Δ) com as demais execuções'}" onclick="toggleComparison('${run.id}')">
+              <i class="fa-solid fa-scale-balanced"></i>
+            </button>
+            <button class="btn-icon" style="margin-left: 4px;" title="Inspecionar detalhes da execução" onclick="openModalById('${run.id}')">
+              <i class="fa-solid fa-magnifying-glass-chart"></i>
+            </button>
+          </td>
+        `;
+
+                tr.addEventListener('click', (e) => {
+                    // Avoid triggering when clicking buttons directly
+                    if (e.target.closest('button')) return;
+                    openModal(run);
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.toggleComparison = function (runId) {
+            if (comparisonRunId === runId) {
+                comparisonRunId = null;
+            } else {
+                comparisonRunId = runId;
+            }
+            renderTable();
+            renderChart();
+        };
+
+        window.clearComparison = function () {
+            comparisonRunId = null;
+            renderTable();
+            renderChart();
+        };
+
+        function highlightRowInTable(runId) {
+            document.querySelectorAll('tr.highlight-row').forEach(el => el.classList.remove('highlight-row'));
+            const row = document.getElementById(`row-${runId}`);
+            if (row) {
+                row.classList.add('highlight-row');
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => row.classList.remove('highlight-row'), 4000);
+            }
+        }
+
+        // --- 10. MODAL INSPECTION DRAWER ---
+        window.openModalById = function (runId) {
+            const run = allRuns.find(r => r.id === runId);
+            if (run) openModal(run);
+        };
+
+        function openModal(run) {
+            document.getElementById('modal-run-name').innerText = run.name;
+
+            const badgeEl = document.getElementById('modal-model-badge');
+            badgeEl.className = `badge ${run.modelType === 'ctr' ? 'badge-ctr' : 'badge-base'}`;
+            badgeEl.innerHTML = `<i class="fa-solid ${run.modelType === 'ctr' ? 'fa-bolt' : 'fa-anchor'}"></i> ${run.modelLabel}`;
+
+            document.getElementById('modal-acc').innerText = run.accuracy !== null ? `${run.accuracy.toFixed(2)}%` : 'N/A';
+            document.getElementById('modal-best-acc').innerText = run.bestAccuracy !== null ? `${run.bestAccuracy.toFixed(2)}%` : 'N/A';
+
+            document.getElementById('modal-bs').innerText = run.batchSize;
+            document.getElementById('modal-iter').innerText = run.numIter;
+            document.getElementById('modal-lambda').innerText = run.contrastiveLambda;
+            document.getElementById('modal-margin').innerText = run.contrastiveMargin;
+
+            document.getElementById('modal-norm-ed').innerText = `${run.normED !== null ? run.normED.toFixed(4) : '-'} / ${run.raw['best_norm_ED'] !== undefined ? parseFloat(run.raw['best_norm_ED']).toFixed(4) : '-'}`;
+            document.getElementById('modal-loss').innerText = `${run.validLoss !== null ? run.validLoss.toFixed(5) : '-'} / ${run.trainLoss !== null ? run.trainLoss.toFixed(5) : '-'}`;
+
+            document.getElementById('modal-start').innerText = run.startTime;
+            document.getElementById('modal-dur').innerText = `${run.duration} (${run.status})`;
+            document.getElementById('modal-run-id').innerText = run.id;
+
+            // Explicit parameters container in modal
+            const paramsContainer = document.getElementById('modal-params-container');
+            paramsContainer.innerHTML = `
+        <div class="param-pill" style="font-size:13px; padding: 6px 12px; background:var(--bg-pill-hover); border: 1px solid var(--border-color);">Batch Size: <span style="color:var(--ctr-color);">${run.batchSize}</span></div>
+        <div class="param-pill" style="font-size:13px; padding: 6px 12px; background:var(--bg-pill-hover); border: 1px solid var(--border-color);">Contrastive Lambda (λ): <span style="color:var(--ctr-color);">${run.contrastiveLambda}</span></div>
+        <div class="param-pill" style="font-size:13px; padding: 6px 12px; background:var(--bg-pill-hover); border: 1px solid var(--border-color);">Contrastive Margin (m): <span style="color:var(--ctr-color);">${run.contrastiveMargin}</span></div>
+        <div class="param-pill" style="font-size:13px; padding: 6px 12px; background:var(--bg-pill-hover); border: 1px solid var(--border-color);">Number of Iterations (num_iter): <span style="color:var(--ctr-color);">${run.numIter}</span></div>
+      `;
+
+            document.getElementById('inspection-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('inspection-modal').classList.remove('active');
+        }
+
+        window.copyText = function (text, msg) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert(msg || "Copiado com sucesso!");
+            });
+        };
+
+        window.toggleTheme = function () {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+
+            const icon = document.getElementById('theme-icon');
+            const label = document.getElementById('theme-label');
+            if (newTheme === 'light') {
+                icon.className = 'fa-solid fa-moon';
+                icon.style.color = '#8b5cf6';
+                label.innerText = 'Tema Escuro';
+            } else {
+                icon.className = 'fa-solid fa-sun';
+                icon.style.color = '#fbbf24';
+                label.innerText = 'Tema Claro';
+            }
+
+            renderChart();
+        };
+    </script>
+</body>
+
+</html>
