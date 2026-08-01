@@ -588,7 +588,7 @@ if __name__ == '__main__':
 
     if opt.mlflow_run_id:
         project_root = Path(__file__).resolve().parent
-        model_path = project_root / 'mlruns' / '1' / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
+        model_path = project_root / 'mlruns' / '2' / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
         if not model_path.is_file():
             print(f"[erro] Modelo não encontrado: {model_path}")
             print(f"       Verifique o run_id e o nome do arquivo (--mlflow_model).")

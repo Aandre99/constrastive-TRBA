@@ -4,8 +4,8 @@ DEVICE=0
 #CONTRASTIVE_RUN_ID="c00c20e3540645398bcfe0804fdfcacc"
 #DATASET="cars_motors"
 
-BASE_RUN_ID="8ce61bea76e44aec8c12765b9e434265"
-CONTRASTIVE_RUN_ID="e02352e993554961b063682558f8b251"
+BASE_RUN_ID="56a980fe025142c8aaf8611a0efa9c28"
+CONTRASTIVE_RUN_ID="482783ee60df48888c93ee3503b18bc6"
 DATASET="cars"
 
 # ── N_RUNS: quando definido, usa evaluate_multiple.py; caso contrário, evaluate.py ──
