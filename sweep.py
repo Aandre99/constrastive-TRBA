@@ -26,16 +26,17 @@ from typing import List, Optional
 
 
 # ──────────────────────────────────────────────────────────────
-# Configuration — edit these to change the sweep parameters
+# Configuração dos 3 experimentos fixos
 # ──────────────────────────────────────────────────────────────
 
-NUM_ITERS = [5000, 15000, 30000]
-BATCH_SIZES = [32, 64, 128]
-MARGINS = [0.5, 0.8, 1.0, 1.2]
-LAMBDAS = [0.1, 0.3, 0.6]
+NUM_ITER   = 30000
+BATCH_SIZE = 32
+CONTRASTIVE_MARGIN = 1.0
+CONTRASTIVE_LAMBDA = 0.6
+CONTRASTIVE_MINING = "semihard"
 
 DEFAULT_GPUS = [0, 1, 2]
-EXP_NAME = "CTRBA"
+EXP_NAME = "CTRBA_BC_1D_2D"
 LOG_DIR = "sweep_logs"
 PROGRESS_FILE = os.path.join(LOG_DIR, "progress.csv")
 
@@ -48,21 +49,23 @@ PROGRESS_FIELDS = ["timestamp", "run_name", "gpu", "status", "duration_min"]
 
 @dataclass
 class Experiment:
-    """Represents a single training experiment."""
+    """Representa um experimento de treinamento."""
     num_iter: int
     batch_size: int
     contrastive: bool
+    attention_type: str = '1D'           # '1D' ou '2D'
     contrastive_margin: Optional[float] = None
     contrastive_lambda: Optional[float] = None
 
     @property
     def run_name(self) -> str:
-        """Generate a descriptive run name for MLflow identification."""
+        """Nome único do run para identificação no MLflow."""
         iter_k = self.num_iter // 1000
+        attn = self.attention_type.lower()
         if not self.contrastive:
-            return f"base_iter{iter_k}k_bs{self.batch_size}"
+            return f"base_{attn}_iter{iter_k}k_bs{self.batch_size}"
         return (
-            f"ctr_iter{iter_k}k_bs{self.batch_size}"
+            f"ctr_{attn}_iter{iter_k}k_bs{self.batch_size}"
             f"_m{self.contrastive_margin}_lam{self.contrastive_lambda}"
         )
 
@@ -80,35 +83,45 @@ def generate_experiments(
     include_baseline: bool = True,
     include_contrastive: bool = True,
 ) -> List[Experiment]:
-    """Generate all experiment combinations.
-
-    Baseline:     NUM_ITER × BATCH_SIZE = 9 runs
-    Contrastive:  NUM_ITER × BATCH_SIZE × MARGIN × LAMBDA = 108 runs
-    Total:        117 runs
+    """
+    Gera os 3 experimentos fixos:
+      1. Base 1D         (sem contrastivo, attention 1D)
+      2. Contrastivo 1D  (com Triplet Loss, attention 1D)
+      3. Contrastivo 2D  (com Triplet Loss, attention 2D espacial)
     """
     experiments = []
 
-    # Baseline runs (no contrastive loss)
     if include_baseline:
-        for num_iter, batch_size in itertools.product(NUM_ITERS, BATCH_SIZES):
-            experiments.append(Experiment(
-                num_iter=num_iter,
-                batch_size=batch_size,
-                contrastive=False,
-            ))
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=False,
+            attention_type='1D',
+        ))
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=False,
+            attention_type='2D',
+        ))
 
-    # Contrastive runs
     if include_contrastive:
-        for num_iter, batch_size, margin, lam in itertools.product(
-            NUM_ITERS, BATCH_SIZES, MARGINS, LAMBDAS,
-        ):
-            experiments.append(Experiment(
-                num_iter=num_iter,
-                batch_size=batch_size,
-                contrastive=True,
-                contrastive_margin=margin,
-                contrastive_lambda=lam,
-            ))
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=True,
+            attention_type='1D',
+            contrastive_margin=CONTRASTIVE_MARGIN,
+            contrastive_lambda=CONTRASTIVE_LAMBDA,
+        ))
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=True,
+            attention_type='2D',
+            contrastive_margin=CONTRASTIVE_MARGIN,
+            contrastive_lambda=CONTRASTIVE_LAMBDA,
+        ))
 
     return experiments
 
@@ -154,7 +167,7 @@ def log_progress(run_name: str, gpu: int, status: str, duration_s: float = 0):
 
 
 def build_command(gpu_id: int, exp: Experiment) -> List[str]:
-    """Build the train.sh command line for an experiment."""
+    """Monta o comando train.sh para um experimento."""
     cmd = ["./train.sh"]
 
     if exp.contrastive:
@@ -163,22 +176,24 @@ def build_command(gpu_id: int, exp: Experiment) -> List[str]:
         cmd.extend(["--contrastive-lambda", str(exp.contrastive_lambda)])
 
     cmd.extend([
-        "--device", str(gpu_id),
-        "--num-iter", str(exp.num_iter),
-        "--batch-size", str(exp.batch_size),
-        "--run_name", exp.run_name,
+        "--exp-name",      EXP_NAME,
+        "--attention-type", exp.attention_type,
+        "--device",        str(gpu_id),
+        "--num-iter",      str(exp.num_iter),
+        "--batch-size",    str(exp.batch_size),
+        "--run_name",      exp.run_name,
     ])
 
     return cmd
 
 
 def run_experiment(gpu_id: int, exp: Experiment) -> bool:
-    """Execute a single experiment via train.sh. Returns True on success."""
+    """Executa um experimento via train.sh. Retorna True em sucesso."""
     cmd = build_command(gpu_id, exp)
     log_file = os.path.join(LOG_DIR, f"{exp.run_name}.log")
 
-    tag = "CTR" if exp.contrastive else "BASE"
-    print(f"  [GPU {gpu_id}] [{tag}] Starting: {exp.run_name}")
+    tag = f"CTR-{exp.attention_type}" if exp.contrastive else "BASE"
+    print(f"  [GPU {gpu_id}] [{tag:7s}] Iniciando: {exp.run_name}")
 
     start = time.time()
     try:
@@ -285,34 +300,40 @@ def main():
     completed = load_completed_runs()
     pending = [e for e in all_experiments if e.run_name not in completed]
 
-    n_baseline = sum(1 for e in all_experiments if not e.contrastive)
-    n_contrastive = sum(1 for e in all_experiments if e.contrastive)
+    n_base_1d = sum(1 for e in all_experiments if not e.contrastive and e.attention_type == '1D')
+    n_base_2d = sum(1 for e in all_experiments if not e.contrastive and e.attention_type == '2D')
+    n_ctr_1d  = sum(1 for e in all_experiments if e.contrastive and e.attention_type == '1D')
+    n_ctr_2d  = sum(1 for e in all_experiments if e.contrastive and e.attention_type == '2D')
     n_pending_baseline = sum(1 for e in pending if not e.contrastive)
-    n_pending_contrastive = sum(1 for e in pending if e.contrastive)
+    n_pending_ctr      = sum(1 for e in pending if e.contrastive)
 
     print(f"\n{'=' * 60}")
-    print(f"  Hyperparameter Sweep — Experiment: {EXP_NAME}")
+    print(f"  Experimentos de Treinamento")
     print(f"{'=' * 60}")
-    print(f"  Total combinations:  {len(all_experiments)}")
-    print(f"    Baseline:          {n_baseline}")
-    print(f"    Contrastive:       {n_contrastive}")
-    print(f"  Already completed:   {len(completed)}")
-    print(f"  Pending:             {len(pending)}")
-    print(f"    Baseline:          {n_pending_baseline}")
-    print(f"    Contrastive:       {n_pending_contrastive}")
+    print(f"  Total:               {len(all_experiments)}")
+    print(f"    Base 1D:           {n_base_1d}")
+    print(f"    Base 2D:           {n_base_2d}")
+    print(f"    Contrastivo 1D:    {n_ctr_1d}")
+    print(f"    Contrastivo 2D:    {n_ctr_2d}")
+    print(f"  Já concluídos:       {len(completed)}")
+    print(f"  Pendentes:           {len(pending)}")
+    print(f"    Base:              {n_pending_baseline}")
+    print(f"    Contrastivo:       {n_pending_ctr}")
     print(f"  GPUs:                {gpus}")
-    print(f"  Runs per GPU:        ~{len(pending) // max(len(gpus), 1)}")
     print(f"{'=' * 60}")
 
     if args.dry_run:
-        print("\n  [DRY RUN] Experiments that would be executed:\n")
+        print("\n  [DRY RUN] Experimentos que seriam executados:\n")
         for i, exp in enumerate(pending):
             gpu = gpus[i % len(gpus)]
-            tag = "CONTRASTIVE" if exp.contrastive else "BASELINE"
-            print(f"    GPU {gpu} | [{tag:11s}] {exp.run_name}")
+            if exp.contrastive:
+                tag = f"CTR-{exp.attention_type}"
+            else:
+                tag = "BASE"
+            print(f"    GPU {gpu} | [{tag:7s}] {exp.run_name}")
         print(f"\n  Total: {len(pending)} runs")
-        print(f"  Logs would go to: {LOG_DIR}/")
-        print(f"  Progress tracked in: {PROGRESS_FILE}")
+        print(f"  Logs em: {LOG_DIR}/")
+        print(f"  Progresso: {PROGRESS_FILE}")
         return
 
     if not pending:

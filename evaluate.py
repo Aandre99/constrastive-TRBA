@@ -346,8 +346,17 @@ def run_inference(opt):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── CSV de resultados ────────────────────────────────────────────────────
-    csv_suffix = 'results_contrastive.csv' if is_contrastive else 'results_base.csv'
-    csv_path = output_dir.parent / csv_suffix
+    # O nome do CSV é derivado do nome da pasta de saída (base* / contrastive*)
+    # para suportar comparações entre dois modelos do mesmo tipo (ex: dois contrastivos).
+    # Fallback: usa a flag is_contrastive (comportamento anterior).
+    folder_name = output_dir.name
+    if folder_name.startswith('contrastive'):
+        csv_suffix = 'results_contrastive.csv'
+    elif folder_name.startswith('base'):
+        csv_suffix = 'results_base.csv'
+    else:
+        csv_suffix = 'results_contrastive.csv' if is_contrastive else 'results_base.csv'
+    csv_path = output_dir / csv_suffix
     csv_rows = []   # todos os resultados (corretos + erros); escrito de uma vez no final
 
     total = len(dataset)
@@ -511,7 +520,7 @@ def parse_args():
     # ── pré-processamento ────────────────────────────────────────────────────
     parser.add_argument('--batch_max_length', type=int, default=25,
                         help='Comprimento máximo do label')
-    parser.add_argument('--imgH', type=int, default=32,
+    parser.add_argument('--imgH', type=int, default=64,
                         help='Altura da imagem de entrada')
     parser.add_argument('--imgW', type=int, default=100,
                         help='Largura da imagem de entrada')
@@ -542,6 +551,9 @@ def parse_args():
                         help='Canais de saída do extrator')
     parser.add_argument('--hidden_size', type=int, default=256,
                         help='Tamanho do estado oculto do LSTM')
+    parser.add_argument('--attention_type', type=str, default='1D', choices=['1D', '2D'],
+                        help='Tipo de atenção: 1D (sequência linear, original) ou '
+                             '2D (atenção espacial sobre grade H\'×W\', para placas multi-linha).')
 
     # ── Contrastivo / Triplet Loss (espelha train.py) ────────────────────────
     parser.add_argument('--use_contrastive', action='store_true',
@@ -588,7 +600,7 @@ if __name__ == '__main__':
 
     if opt.mlflow_run_id:
         project_root = Path(__file__).resolve().parent
-        model_path = project_root / 'mlruns' / '2' / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
+        model_path = project_root / 'mlruns' / '4' / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
         if not model_path.is_file():
             print(f"[erro] Modelo não encontrado: {model_path}")
             print(f"       Verifique o run_id e o nome do arquivo (--mlflow_model).")
@@ -608,6 +620,18 @@ if __name__ == '__main__':
         print("[aviso] --use_contrastive requer --Prediction Attn. "
               "O flag será ignorado.")
         opt.use_contrastive = False
+
+    # Validação attention_type
+    if opt.attention_type == '2D':
+        if opt.Transformation == 'TPS':
+            print('[aviso] TPS incompatível com attention_type=2D. Desabilitando TPS.')
+            opt.Transformation = 'None'
+        if opt.Prediction != 'Attn':
+            print('[erro] --attention_type 2D requer --Prediction Attn.')
+            sys.exit(1)
+        if opt.imgH < 48:
+            print(f'[aviso] imgH={opt.imgH} gera H\'≤1 no ResNet, insuficiente para 2D. '
+                  f'Recomenda-se imgH >= 48.')
 
     # ── resolução do device ──────────────────────────────────────────────────
     if opt.device:

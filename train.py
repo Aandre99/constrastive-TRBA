@@ -399,6 +399,9 @@ if __name__ == '__main__':
     parser.add_argument('--output_channel', type=int, default=512,
                         help='the number of output channel of Feature extractor')
     parser.add_argument('--hidden_size', type=int, default=256, help='the size of the LSTM hidden state')
+    parser.add_argument('--attention_type', type=str, default='1D', choices=['1D', '2D'],
+                        help='Tipo de atenção: 1D (sequência linear, original) ou '
+                             '2D (atenção espacial sobre grade H\'×W\', para placas multi-linha).')
 
     """ Contrastive / Triplet Loss """
     parser.add_argument('--use_contrastive', action='store_true',
@@ -421,10 +424,23 @@ if __name__ == '__main__':
 
     if not opt.exp_name:
         opt.exp_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}'
+        if opt.attention_type == '2D':
+            opt.exp_name += '-Attn2D'
         if getattr(opt, 'use_contrastive', False):
             opt.exp_name += f'-Contrastive_lam{opt.contrastive_lambda}_m{opt.contrastive_margin}'
         opt.exp_name += f'-Seed{opt.manualSeed}'
         # print(opt.exp_name)
+
+    # Validação attention_type
+    if opt.attention_type == '2D':
+        if opt.Transformation == 'TPS':
+            print('[aviso] TPS incompatível com attention_type=2D. Desabilitando TPS.')
+            opt.Transformation = 'None'
+        if opt.Prediction != 'Attn':
+            raise ValueError('--attention_type 2D requer --Prediction Attn.')
+        if opt.imgH < 48:
+            print(f'[aviso] imgH={opt.imgH} gera H\'≤1 no ResNet, insuficiente para 2D. '
+                  f'Recomenda-se imgH >= 48.')
 
     os.makedirs(f'./saved_models/{opt.exp_name}', exist_ok=True)
 

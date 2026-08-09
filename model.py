@@ -20,6 +20,8 @@ from modules.transformation import TPS_SpatialTransformerNetwork
 from modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
 from modules.sequence_modeling import BidirectionalLSTM
 from modules.prediction import Attention
+from modules.prediction_2d import Attention2D
+from modules.positional_encoding import LearnablePositionalEncoding2D
 from modules.contrastive import CharContrastiveHead
 
 
@@ -30,6 +32,8 @@ class Model(nn.Module):
         self.opt = opt
         self.stages = {'Trans': opt.Transformation, 'Feat': opt.FeatureExtraction,
                        'Seq': opt.SequenceModeling, 'Pred': opt.Prediction}
+
+        self.attention_type = getattr(opt, 'attention_type', '1D')
 
         """ Transformation """
         if opt.Transformation == 'TPS':
@@ -48,10 +52,34 @@ class Model(nn.Module):
         else:
             raise Exception('No FeatureExtraction module specified')
         self.FeatureExtraction_output = opt.output_channel  # int(imgH/16-1) * 512
-        self.AdaptiveAvgPool = nn.AdaptiveAvgPool2d((None, 1))  # Transform final (imgH/16-1) -> 1
+
+        """ Spatial processing: 1D (collapse height) vs 2D (preserve height) """
+        if self.attention_type == '2D':
+            # Modo 2D: preservar grade espacial H'×W', adicionar PE 2D
+            self.AdaptiveAvgPool = None
+            self.pos_encoding = LearnablePositionalEncoding2D(
+                channels=opt.output_channel,
+                max_h=8,    # suficiente para imgH até ~128
+                max_w=64,   # suficiente para imgW até ~256
+            )
+        else:
+            # Modo 1D (original): colapsar H → 1
+            self.AdaptiveAvgPool = nn.AdaptiveAvgPool2d((None, 1))  # Transform final (imgH/16-1) -> 1
 
         """ Sequence modeling"""
-        if opt.SequenceModeling == 'BiLSTM':
+        if self.attention_type == '2D':
+            # Modo 2D: Transformer Encoder sobre a sequência H'×W'
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=opt.output_channel,
+                nhead=8,
+                dim_feedforward=opt.output_channel * 2,
+                dropout=0.1,
+                batch_first=True,
+            )
+            self.SequenceModeling = nn.TransformerEncoder(encoder_layer, num_layers=2)
+            self.seq_projection = nn.Linear(opt.output_channel, opt.hidden_size)
+            self.SequenceModeling_output = opt.hidden_size
+        elif opt.SequenceModeling == 'BiLSTM':
             self.SequenceModeling = nn.Sequential(
                 BidirectionalLSTM(self.FeatureExtraction_output, opt.hidden_size, opt.hidden_size),
                 BidirectionalLSTM(opt.hidden_size, opt.hidden_size, opt.hidden_size))
@@ -64,7 +92,10 @@ class Model(nn.Module):
         if opt.Prediction == 'CTC':
             self.Prediction = nn.Linear(self.SequenceModeling_output, opt.num_class)
         elif opt.Prediction == 'Attn':
-            self.Prediction = Attention(self.SequenceModeling_output, opt.hidden_size, opt.num_class)
+            if self.attention_type == '2D':
+                self.Prediction = Attention2D(self.SequenceModeling_output, opt.hidden_size, opt.num_class)
+            else:
+                self.Prediction = Attention(self.SequenceModeling_output, opt.hidden_size, opt.num_class)
         else:
             raise Exception('Prediction is neither CTC or Attn')
 
@@ -101,11 +132,24 @@ class Model(nn.Module):
 
         """ Feature extraction stage """
         visual_feature = self.FeatureExtraction(input)
-        visual_feature = self.AdaptiveAvgPool(visual_feature.permute(0, 3, 1, 2))  # [b, c, h, w] -> [b, w, c, h]
-        visual_feature = visual_feature.squeeze(3)
+
+        if self.attention_type == '2D':
+            # Modo 2D: preservar grade espacial, adicionar PE, achatar para sequência
+            visual_feature = self.pos_encoding(visual_feature)       # [B, C, H', W']
+            B, C, H, W = visual_feature.shape
+            visual_feature = visual_feature.permute(0, 2, 3, 1)     # [B, H', W', C]
+            visual_feature = visual_feature.reshape(B, H * W, C)    # [B, H'×W', C]
+        else:
+            # Modo 1D (original): colapsar H → 1, formar sequência de W' posições
+            visual_feature = self.AdaptiveAvgPool(visual_feature.permute(0, 3, 1, 2))  # [b, c, h, w] -> [b, w, c, h]
+            visual_feature = visual_feature.squeeze(3)
 
         """ Sequence modeling stage """
-        if self.stages['Seq'] == 'BiLSTM':
+        if self.attention_type == '2D':
+            # Transformer Encoder + projeção para hidden_size
+            contextual_feature = self.SequenceModeling(visual_feature)       # [B, H'×W', output_channel]
+            contextual_feature = self.seq_projection(contextual_feature)     # [B, H'×W', hidden_size]
+        elif self.stages['Seq'] == 'BiLSTM':
             contextual_feature = self.SequenceModeling(visual_feature)
         else:
             contextual_feature = visual_feature  # for convenience. this is NOT contextually modeled by BiLSTM
@@ -115,7 +159,7 @@ class Model(nn.Module):
             prediction = self.Prediction(contextual_feature.contiguous())
             return prediction
 
-        # Attn decoder
+        # Attn decoder (1D ou 2D — interface idêntica)
         if return_contrastive and self.use_contrastive:
             prediction, context_vectors = self.Prediction(
                 contextual_feature.contiguous(),

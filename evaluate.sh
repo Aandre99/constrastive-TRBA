@@ -1,12 +1,20 @@
 DEVICE=0
+ATTENTION_TYPE="${ATTENTION_TYPE:-1D}"   # override: ATTENTION_TYPE=2D bash evaluate.sh
 
-#BASE_RUN_ID="4bbb9467079f4a76afca994e9172547a"
-#CONTRASTIVE_RUN_ID="c00c20e3540645398bcfe0804fdfcacc"
-#DATASET="cars_motors"
-
-BASE_RUN_ID="56a980fe025142c8aaf8611a0efa9c28"
-CONTRASTIVE_RUN_ID="482783ee60df48888c93ee3503b18bc6"
 DATASET="cars"
+
+if [ "$ATTENTION_TYPE" = "1D" ]; then
+    BASE_RUN_ID="684fc5e44b1340ccaff068a8244eff15"        # 1D base, 30k iters
+    CONTRASTIVE_RUN_ID="4f7f3195a8a348e5ab1d735da9a94b10" # 1D ctr, 30k iters
+elif [ "$ATTENTION_TYPE" = "2D" ]; then
+    BASE_RUN_ID="374b080909b74ac7bdb705316e0bdf96"        # 2D base, 30k iters
+    CONTRASTIVE_RUN_ID="3944c0a93ab84a72b565f391de8ed993" # 2D ctr, 30k iters
+else
+    echo "[erro] ATTENTION_TYPE inválido: '$ATTENTION_TYPE'. Use '1D' ou '2D'."
+    exit 1
+fi
+
+ATTN_LOWER=$(echo "$ATTENTION_TYPE" | tr '[:upper:]' '[:lower:]')
 
 # ── N_RUNS: quando definido, usa evaluate_multiple.py; caso contrário, evaluate.py ──
 if [ -n "$N_RUNS" ]; then
@@ -20,24 +28,32 @@ else
     RUN_MODE="single"
 fi
 
+echo "[evaluate.sh] attention_type=$ATTENTION_TYPE"
+
 CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python $EVAL_SCRIPT \
         --dataset "$DATASET" \
         --mlflow_run_id "$CONTRASTIVE_RUN_ID" \
-        --Transformation TPS --FeatureExtraction ResNet \
+        --Transformation None --FeatureExtraction ResNet \
         --SequenceModeling BiLSTM --Prediction Attn \
+        --attention_type "$ATTENTION_TYPE" \
         --use_contrastive \
         --contrastive_embedding_dim 128 \
-        --output_dir outputs/$RUN_MODE/$DATASET/contrastive \
+        --output_dir outs/$RUN_MODE/$DATASET/contrastive_${ATTN_LOWER} \
         $EXTRA_ARGS
 
 CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python $EVAL_SCRIPT \
         --dataset "$DATASET" \
         --mlflow_run_id "$BASE_RUN_ID" \
-        --Transformation TPS --FeatureExtraction ResNet \
+        --Transformation None --FeatureExtraction ResNet \
         --SequenceModeling BiLSTM --Prediction Attn \
-        --output_dir outputs/$RUN_MODE/$DATASET/base \
+        --attention_type "$ATTENTION_TYPE" \
+        --output_dir outs/$RUN_MODE/$DATASET/base_${ATTN_LOWER} \
         $EXTRA_ARGS
 
 if [ "$RUN_MODE" = "single" ]; then
-    PYENV_VERSION=torch131 python statistics.py outputs/$RUN_MODE/$DATASET
+    PYENV_VERSION=torch131 python statistics.py outs/$RUN_MODE/$DATASET \
+        --suffix "$ATTN_LOWER" \
+        --attention_type "$ATTENTION_TYPE" \
+        --base_run_id "$BASE_RUN_ID" \
+        --contrastive_run_id "$CONTRASTIVE_RUN_ID"
 fi

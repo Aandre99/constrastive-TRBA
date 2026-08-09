@@ -22,6 +22,7 @@ import argparse
 from pathlib import Path
 from collections import defaultdict
 import difflib
+import datetime
 
 
 def parse_gt(gt_path: Path) -> tuple:
@@ -92,13 +93,47 @@ def load_csv(csv_path: str) -> list:
     return rows
 
 
-def discover_csvs(results_dir: Path) -> tuple:
+def _find_csv(results_dir: Path, role: str, suffix: str = '') -> Path:
+    """
+    Procura results_{role}.csv em:
+      1. results_dir/ diretamente (layout antigo)
+      2. Subpasta cujo nome é '{role}_{suffix}' se suffix fornecido,
+         ou a primeira subpasta cujo nome começa com '{role}' (ordem alfabética).
+    """
+    # Tentativa 1: arquivo direto na raiz
+    direct = results_dir / f'results_{role}.csv'
+    if direct.is_file():
+        return direct
+
+    # Tentativa 2: subpasta com prefixo do role
+    candidates = sorted(results_dir.iterdir())
+    for sub in candidates:
+        if not sub.is_dir():
+            continue
+        # Se suffix especificado, exige correspondência exata
+        if suffix:
+            if sub.name != f'{role}_{suffix}':
+                continue
+        else:
+            if not sub.name.startswith(role):
+                continue
+        csv_in_sub = sub / f'results_{role}.csv'
+        if csv_in_sub.is_file():
+            return csv_in_sub
+
+    return direct  # retorna o caminho esperado para gerar mensagem de erro útil
+
+
+def discover_csvs(results_dir: Path, suffix: str = '') -> tuple:
     """
     Auto-descobre os CSVs de base e contrastivo dentro de results_dir.
+    Suporta tanto o layout plano antigo (results_base.csv na raiz) quanto
+    o layout com subpastas (base_2d/results_base.csv, contrastive_2d/results_contrastive.csv).
+    Se suffix fornecido (ex: '2d'), filtra apenas subpastas com esse sufixo.
     Retorna (base_path, contra_path) ou lança FileNotFoundError.
     """
-    base_path    = results_dir / 'results_base.csv'
-    contra_path  = results_dir / 'results_contrastive.csv'
+    base_path   = _find_csv(results_dir, 'base', suffix)
+    contra_path = _find_csv(results_dir, 'contrastive', suffix)
 
     missing = [p for p in (base_path, contra_path) if not p.is_file()]
     if missing:
@@ -211,9 +246,11 @@ def _delta(base_val: float, contra_val: float, lower_is_better: bool = False, is
         return f'{arrow} {sign}{diff:.4f}'
 
 
-def generate_report(base_stats: dict, contra_stats: dict, results_dir: Path) -> str:
+def generate_report(base_stats: dict, contra_stats: dict, results_dir: Path,
+                    meta: dict = None) -> str:
     b = base_stats
     c = contra_stats
+    meta = meta or {}
 
     lines = []
     a = lines.append
@@ -222,6 +259,12 @@ def generate_report(base_stats: dict, contra_stats: dict, results_dir: Path) -> 
     a('')
     a('> Gerado automaticamente por `statistics.py`')
     a('')
+
+    # ── Metadados ─────────────────────────────────────────────────────────────
+    a(f'- **Data/Hora**: {meta.get("timestamp", "N/A")}')
+    a(f'- **Tipo de atenção**: `{meta.get("attention_type", "N/A")}`')
+    a(f'- **Run ID Base**: `{meta.get("base_run_id", "N/A")}`')
+    a(f'- **Run ID Contrastivo**: `{meta.get("contrastive_run_id", "N/A")}`')
     a(f'- **Pasta de resultados**: `{results_dir}`')
     a(f'- **Conjunto de teste**: {b["total"]} imagens')
     a('')
@@ -304,6 +347,16 @@ def parse_args():
                              '(deve conter results_base.csv e results_contrastive.csv)')
     parser.add_argument('--gt_path', default='dataset/test/gt.txt',
                         help='Caminho para o arquivo gt.txt (padrão: dataset/test/gt.txt)')
+    parser.add_argument('--suffix', default='',
+                        help='Sufixo do tipo de atenção a filtrar (ex: 1d, 2d). '
+                             'Quando definido, procura subpastas base_{suffix}/ e '
+                             'contrastive_{suffix}/ em vez da primeira disponível.')
+    parser.add_argument('--attention_type', default='',
+                        help='Tipo de atenção usado (ex: 1D, 2D). Inserido no relatório.')
+    parser.add_argument('--base_run_id', default='',
+                        help='MLflow Run ID do modelo base. Inserido no relatório.')
+    parser.add_argument('--contrastive_run_id', default='',
+                        help='MLflow Run ID do modelo contrastivo. Inserido no relatório.')
     return parser.parse_args()
 
 
@@ -317,12 +370,13 @@ if __name__ == '__main__':
 
     # ── descoberta dos CSVs ───────────────────────────────────────────────────
     try:
-        base_path, contra_path = discover_csvs(results_dir)
+        base_path, contra_path = discover_csvs(results_dir, suffix=opt.suffix)
     except FileNotFoundError as e:
         print(e)
         sys.exit(1)
 
-    output_path = results_dir / 'comparison.md'
+    output_name = f'comparison_{opt.suffix}.md' if opt.suffix else 'comparison.md'
+    output_path = results_dir / output_name
 
     # ── carrega dados ─────────────────────────────────────────────────────────
     print(f'[base]   {base_path}')
@@ -338,13 +392,21 @@ if __name__ == '__main__':
     if total_gt == 0:
         print(f"[aviso] gt.txt não encontrado ou vazio em {gt_path}. Usando apenas os dados do CSV.")
 
+    # ── metadados do relatório ────────────────────────────────────────────────
+    meta = {
+        'timestamp':         datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'attention_type':    opt.attention_type or opt.suffix.upper() or 'N/A',
+        'base_run_id':       opt.base_run_id or 'N/A',
+        'contrastive_run_id': opt.contrastive_run_id or 'N/A',
+    }
+
     # ── métricas ──────────────────────────────────────────────────────────────
     print('[stats]  Calculando...')
     base_stats   = compute_stats(base_rows, total_gt, total_gt_chars, gt_char_counts)
     contra_stats = compute_stats(contra_rows, total_gt, total_gt_chars, gt_char_counts)
 
     # ── relatório ─────────────────────────────────────────────────────────────
-    report = generate_report(base_stats, contra_stats, results_dir)
+    report = generate_report(base_stats, contra_stats, results_dir, meta=meta)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(report, encoding='utf-8')
     print(f'[ok]     Relatório salvo em: {output_path}')

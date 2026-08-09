@@ -342,6 +342,9 @@ def parse_args():
     parser.add_argument('--input_channel', type=int, default=1)
     parser.add_argument('--output_channel', type=int, default=512)
     parser.add_argument('--hidden_size', type=int, default=256)
+    parser.add_argument('--attention_type', type=str, default='1D', choices=['1D', '2D'],
+                        help='Tipo de atenção: 1D (sequência linear, original) ou '
+                             '2D (atenção espacial sobre grade H\'×W\', para placas multi-linha).')
 
     # ── Contrastivo / Triplet Loss ───────────────────────────────────────────
     parser.add_argument('--use_contrastive', action='store_true')
@@ -401,6 +404,18 @@ if __name__ == '__main__':
     if getattr(opt, 'use_contrastive', False) and 'Attn' not in opt.Prediction:
         print('[aviso] --use_contrastive requer --Prediction Attn. O flag será ignorado.')
         opt.use_contrastive = False
+
+    # Validação attention_type
+    if opt.attention_type == '2D':
+        if opt.Transformation == 'TPS':
+            print('[aviso] TPS incompatível com attention_type=2D. Desabilitando TPS.')
+            opt.Transformation = 'None'
+        if opt.Prediction != 'Attn':
+            print('[erro] --attention_type 2D requer --Prediction Attn.')
+            sys.exit(1)
+        if opt.imgH < 48:
+            print(f'[aviso] imgH={opt.imgH} gera H\'≤1 no ResNet, insuficiente para 2D. '
+                  f'Recomenda-se imgH >= 48.')
 
     if opt.device:
         opt.device = torch.device(opt.device)
