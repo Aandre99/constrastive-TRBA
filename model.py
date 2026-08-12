@@ -68,17 +68,30 @@ class Model(nn.Module):
 
         """ Sequence modeling"""
         if self.attention_type == '2D':
-            # Modo 2D: Transformer Encoder sobre a sequência H'×W'
-            encoder_layer = nn.TransformerEncoderLayer(
-                d_model=opt.output_channel,
-                nhead=8,
-                dim_feedforward=opt.output_channel * 2,
-                dropout=0.1,
-                batch_first=True,
-            )
-            self.SequenceModeling = nn.TransformerEncoder(encoder_layer, num_layers=2)
-            self.seq_projection = nn.Linear(opt.output_channel, opt.hidden_size)
-            self.SequenceModeling_output = opt.hidden_size
+            if opt.SequenceModeling == 'BiLSTM':
+                # Modo 2D + BiLSTM: 2 camadas de BiLSTM sobre a sequência H'×W'
+                # (raster scan). O PE 2D já foi somado antes do flatten, então a
+                # BiLSTM recebe features com informação posicional (y, x).
+                self.SequenceModeling = nn.Sequential(
+                    BidirectionalLSTM(self.FeatureExtraction_output, opt.hidden_size, opt.hidden_size),
+                    BidirectionalLSTM(opt.hidden_size, opt.hidden_size, opt.hidden_size))
+                self.SequenceModeling_output = opt.hidden_size
+            elif opt.SequenceModeling == 'None':
+                # Modo 2D sem sequence modeler (ablação): projeção linear direta
+                self.seq_projection = nn.Linear(opt.output_channel, opt.hidden_size)
+                self.SequenceModeling_output = opt.hidden_size
+            else:
+                # Modo 2D + Transformer Encoder (default) sobre a sequência H'×W'
+                encoder_layer = nn.TransformerEncoderLayer(
+                    d_model=opt.output_channel,
+                    nhead=8,
+                    dim_feedforward=opt.output_channel * 2,
+                    dropout=0.1,
+                    batch_first=True,
+                )
+                self.SequenceModeling = nn.TransformerEncoder(encoder_layer, num_layers=2)
+                self.seq_projection = nn.Linear(opt.output_channel, opt.hidden_size)
+                self.SequenceModeling_output = opt.hidden_size
         elif opt.SequenceModeling == 'BiLSTM':
             self.SequenceModeling = nn.Sequential(
                 BidirectionalLSTM(self.FeatureExtraction_output, opt.hidden_size, opt.hidden_size),
@@ -146,9 +159,16 @@ class Model(nn.Module):
 
         """ Sequence modeling stage """
         if self.attention_type == '2D':
-            # Transformer Encoder + projeção para hidden_size
-            contextual_feature = self.SequenceModeling(visual_feature)       # [B, H'×W', output_channel]
-            contextual_feature = self.seq_projection(contextual_feature)     # [B, H'×W', hidden_size]
+            if self.stages['Seq'] == 'BiLSTM':
+                # BiLSTM 2D: já projeta para hidden_size internamente
+                contextual_feature = self.SequenceModeling(visual_feature)       # [B, H'×W', hidden_size]
+            elif self.stages['Seq'] == 'None':
+                # Sem sequence modeler: projeção linear direta
+                contextual_feature = self.seq_projection(visual_feature)         # [B, H'×W', hidden_size]
+            else:
+                # Transformer Encoder + projeção para hidden_size
+                contextual_feature = self.SequenceModeling(visual_feature)       # [B, H'×W', output_channel]
+                contextual_feature = self.seq_projection(contextual_feature)     # [B, H'×W', hidden_size]
         elif self.stages['Seq'] == 'BiLSTM':
             contextual_feature = self.SequenceModeling(visual_feature)
         else:

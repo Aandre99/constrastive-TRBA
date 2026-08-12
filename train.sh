@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Uso:
-#   ./train.sh                                      → baseline 1D, GPU 0
-#   ./train.sh --contrastive                        → contrastivo 1D, GPU 0
-#   ./train.sh --contrastive --attention-type 2D    → contrastivo 2D, GPU 0
-#   ./train.sh --device 1                           → baseline na GPU 1
-#   ./train.sh --num-iter 50000 --batch-size 64     → sobrescreve iterações/batch
+#   ./train.sh                                         → baseline 1D+BiLSTM, GPU 0
+#   ./train.sh --attention-type 2D                     → 2D+BiLSTM (Config B), GPU 0
+#   ./train.sh --attention-type 2D --seq-modeling Transformer  → 2D+Transformer (Config A)
+#   ./train.sh --attention-type 2D --seq-modeling None         → 2D+None (ablação)
+#   ./train.sh --contrastive                           → contrastivo 1D, GPU 0
+#   ./train.sh --contrastive --attention-type 2D       → contrastivo 2D+BiLSTM, GPU 0
+#   ./train.sh --device 1                              → baseline na GPU 1
+#   ./train.sh --num-iter 50000 --batch-size 64        → sobrescreve iterações/batch
 #   ./train.sh --contrastive --contrastive-lambda 0.05 --contrastive-mining hard
 
 CONTRASTIVE=0
 DEVICE=0
 ATTENTION_TYPE=1D
+SEQ_MODELING=BiLSTM
 EXP_NAME_OVERRIDE=
 
 # Defaults
@@ -33,16 +37,17 @@ while [ $i -lt ${#args[@]} ]; do
         --contrastive-mining)  i=$((i+1)); CONTRASTIVE_MINING="${args[$i]}" ;;
         --run_name)            i=$((i+1)); RUN_NAME="${args[$i]}" ;;
         --attention-type)      i=$((i+1)); ATTENTION_TYPE="${args[$i]}" ;;
+        --seq-modeling)        i=$((i+1)); SEQ_MODELING="${args[$i]}" ;;
         --exp-name)            i=$((i+1)); EXP_NAME_OVERRIDE="${args[$i]}" ;;
     esac
     i=$((i+1))
 done
 
-# MLflow experiment name: --exp-name sobrepõe; fallback separa 1D/2D
+# MLflow experiment name: --exp-name sobrepõe; fallback separa 1D/2D+seq
 if [ -n "$EXP_NAME_OVERRIDE" ]; then
     EXP_NAME="$EXP_NAME_OVERRIDE"
 elif [ "$ATTENTION_TYPE" = "2D" ]; then
-    EXP_NAME="CTRBA-2D"
+    EXP_NAME="CTRBA-2D-${SEQ_MODELING}"
 else
     EXP_NAME="CTRBA"
 fi
@@ -64,7 +69,7 @@ BASE_ARGS=(
     --data_filtering_off
     --Transformation      None
     --FeatureExtraction   ResNet
-    --SequenceModeling    BiLSTM
+    --SequenceModeling    "$SEQ_MODELING"
     --Prediction          Attn
     --attention_type      "$ATTENTION_TYPE"
 )

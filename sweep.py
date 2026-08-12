@@ -54,6 +54,7 @@ class Experiment:
     batch_size: int
     contrastive: bool
     attention_type: str = '1D'           # '1D' ou '2D'
+    sequence_modeling: str = 'BiLSTM'   # 'BiLSTM' | 'Transformer' | 'None'
     contrastive_margin: Optional[float] = None
     contrastive_lambda: Optional[float] = None
 
@@ -62,10 +63,12 @@ class Experiment:
         """Nome único do run para identificação no MLflow."""
         iter_k = self.num_iter // 1000
         attn = self.attention_type.lower()
+        # Em modo 2D, inclui o seq modeler para diferenciar BiLSTM vs Transformer
+        seq = f"_{self.sequence_modeling.lower()}" if self.attention_type == '2D' else ""
         if not self.contrastive:
-            return f"base_{attn}_iter{iter_k}k_bs{self.batch_size}"
+            return f"base_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}"
         return (
-            f"ctr_{attn}_iter{iter_k}k_bs{self.batch_size}"
+            f"ctr_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}"
             f"_m{self.contrastive_margin}_lam{self.contrastive_lambda}"
         )
 
@@ -84,10 +87,11 @@ def generate_experiments(
     include_contrastive: bool = True,
 ) -> List[Experiment]:
     """
-    Gera os 3 experimentos fixos:
-      1. Base 1D         (sem contrastivo, attention 1D)
-      2. Contrastivo 1D  (com Triplet Loss, attention 1D)
-      3. Contrastivo 2D  (com Triplet Loss, attention 2D espacial)
+    Gera os 4 experimentos fixos:
+      1. Base 1D          (sem contrastivo, attention 1D, BiLSTM)
+      2. Base 2D+BiLSTM   (sem contrastivo, attention 2D, BiLSTM  — Config B)
+      3. Contrastivo 1D   (com Triplet Loss, attention 1D, BiLSTM)
+      4. Contrastivo 2D   (com Triplet Loss, attention 2D, BiLSTM  — Config B)
     """
     experiments = []
 
@@ -97,12 +101,14 @@ def generate_experiments(
             batch_size=BATCH_SIZE,
             contrastive=False,
             attention_type='1D',
+            sequence_modeling='BiLSTM',
         ))
         experiments.append(Experiment(
             num_iter=NUM_ITER,
             batch_size=BATCH_SIZE,
             contrastive=False,
             attention_type='2D',
+            sequence_modeling='BiLSTM',   # Config B
         ))
 
     if include_contrastive:
@@ -111,6 +117,7 @@ def generate_experiments(
             batch_size=BATCH_SIZE,
             contrastive=True,
             attention_type='1D',
+            sequence_modeling='BiLSTM',
             contrastive_margin=CONTRASTIVE_MARGIN,
             contrastive_lambda=CONTRASTIVE_LAMBDA,
         ))
@@ -119,6 +126,7 @@ def generate_experiments(
             batch_size=BATCH_SIZE,
             contrastive=True,
             attention_type='2D',
+            sequence_modeling='BiLSTM',   # Config B
             contrastive_margin=CONTRASTIVE_MARGIN,
             contrastive_lambda=CONTRASTIVE_LAMBDA,
         ))
@@ -178,6 +186,7 @@ def build_command(gpu_id: int, exp: Experiment) -> List[str]:
     cmd.extend([
         "--exp-name",      EXP_NAME,
         "--attention-type", exp.attention_type,
+        "--seq-modeling",  exp.sequence_modeling,
         "--device",        str(gpu_id),
         "--num-iter",      str(exp.num_iter),
         "--batch-size",    str(exp.batch_size),
