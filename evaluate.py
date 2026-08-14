@@ -404,8 +404,9 @@ def run_inference(opt):
                 # Pós-processamento Attn: cortar após token [s] e limitar comprimento
                 if 'Attn' in opt.Prediction:
                     eos_idx = pred.find('[s]')
-                    pred = pred[:eos_idx]
-                    pred_max_prob = pred_max_prob[:eos_idx]
+                    if eos_idx != -1:
+                        pred = pred[:eos_idx]
+                        pred_max_prob = pred_max_prob[:eos_idx]
 
                 if opt.max_label_len > 0:
                     pred = pred[:opt.max_label_len]
@@ -600,10 +601,18 @@ if __name__ == '__main__':
 
     if opt.mlflow_run_id:
         project_root = Path(__file__).resolve().parent
-        model_path = project_root / 'mlruns' / '4' / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
-        if not model_path.is_file():
-            print(f"[erro] Modelo não encontrado: {model_path}")
-            print(f"       Verifique o run_id e o nome do arquivo (--mlflow_model).")
+        model_path = None
+        mlruns_dir = project_root / 'mlruns'
+        if mlruns_dir.is_dir():
+            for exp_dir in mlruns_dir.iterdir():
+                if exp_dir.is_dir():
+                    candidate = exp_dir / opt.mlflow_run_id / 'artifacts' / opt.mlflow_model
+                    if candidate.is_file():
+                        model_path = candidate
+                        break
+        if not model_path or not model_path.is_file():
+            print(f"[erro] Modelo não encontrado para o run_id '{opt.mlflow_run_id}' e arquivo '{opt.mlflow_model}'.")
+            print(f"       Verifique se o run_id existe em mlruns/.")
             sys.exit(1)
         opt.saved_model = str(model_path)
         print(f"[mlflow] Run ID : {opt.mlflow_run_id}")

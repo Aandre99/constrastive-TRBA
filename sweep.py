@@ -36,7 +36,7 @@ CONTRASTIVE_LAMBDA = 0.6
 CONTRASTIVE_MINING = "semihard"
 
 DEFAULT_GPUS = [0, 1, 2]
-EXP_NAME = "CTRBA_BC_1D_2D"
+EXP_NAME = "CTRBA-MSC"
 LOG_DIR = "sweep_logs"
 PROGRESS_FILE = os.path.join(LOG_DIR, "progress.csv")
 
@@ -63,8 +63,7 @@ class Experiment:
         """Nome único do run para identificação no MLflow."""
         iter_k = self.num_iter // 1000
         attn = self.attention_type.lower()
-        # Em modo 2D, inclui o seq modeler para diferenciar BiLSTM vs Transformer
-        seq = f"_{self.sequence_modeling.lower()}" if self.attention_type == '2D' else ""
+        seq = f"_{self.sequence_modeling.lower()}"
         if not self.contrastive:
             return f"base_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}"
         return (
@@ -87,15 +86,21 @@ def generate_experiments(
     include_contrastive: bool = True,
 ) -> List[Experiment]:
     """
-    Gera os 4 experimentos fixos:
-      1. Base 1D          (sem contrastivo, attention 1D, BiLSTM)
-      2. Base 2D+BiLSTM   (sem contrastivo, attention 2D, BiLSTM  — Config B)
-      3. Contrastivo 1D   (com Triplet Loss, attention 1D, BiLSTM)
-      4. Contrastivo 2D   (com Triplet Loss, attention 2D, BiLSTM  — Config B)
+    Gera a matriz completa de experimentos (Base vs Contrastivo, 1D vs 2D):
+      Modelos Base:
+        1. Base 1D BiLSTM
+        2. Base 2D BiLSTM
+        3. Base 2D None (ablação de controle)
+      Modelos Contrastivos:
+        4. Contrastivo 1D BiLSTM
+        5. Contrastivo 2D BiLSTM
+        6. Contrastivo 2D Transformer
+        7. Contrastivo 2D None (ablação)
     """
     experiments = []
 
     if include_baseline:
+        # 1. Base 1D BiLSTM
         experiments.append(Experiment(
             num_iter=NUM_ITER,
             batch_size=BATCH_SIZE,
@@ -103,15 +108,25 @@ def generate_experiments(
             attention_type='1D',
             sequence_modeling='BiLSTM',
         ))
+        # 2. Base 2D BiLSTM
         experiments.append(Experiment(
             num_iter=NUM_ITER,
             batch_size=BATCH_SIZE,
             contrastive=False,
             attention_type='2D',
-            sequence_modeling='BiLSTM',   # Config B
+            sequence_modeling='BiLSTM',
+        ))
+        # 3. Base 2D None (Ablação de controle)
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=False,
+            attention_type='2D',
+            sequence_modeling='None',
         ))
 
     if include_contrastive:
+        # 4. Contrastivo 1D BiLSTM
         experiments.append(Experiment(
             num_iter=NUM_ITER,
             batch_size=BATCH_SIZE,
@@ -121,12 +136,33 @@ def generate_experiments(
             contrastive_margin=CONTRASTIVE_MARGIN,
             contrastive_lambda=CONTRASTIVE_LAMBDA,
         ))
+        # 5. Contrastivo 2D BiLSTM
         experiments.append(Experiment(
             num_iter=NUM_ITER,
             batch_size=BATCH_SIZE,
             contrastive=True,
             attention_type='2D',
-            sequence_modeling='BiLSTM',   # Config B
+            sequence_modeling='BiLSTM',
+            contrastive_margin=CONTRASTIVE_MARGIN,
+            contrastive_lambda=CONTRASTIVE_LAMBDA,
+        ))
+        # 6. Contrastivo 2D Transformer
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=True,
+            attention_type='2D',
+            sequence_modeling='Transformer',
+            contrastive_margin=CONTRASTIVE_MARGIN,
+            contrastive_lambda=CONTRASTIVE_LAMBDA,
+        ))
+        # 7. Contrastivo 2D None (Ablação)
+        experiments.append(Experiment(
+            num_iter=NUM_ITER,
+            batch_size=BATCH_SIZE,
+            contrastive=True,
+            attention_type='2D',
+            sequence_modeling='None',
             contrastive_margin=CONTRASTIVE_MARGIN,
             contrastive_lambda=CONTRASTIVE_LAMBDA,
         ))
@@ -174,7 +210,7 @@ def log_progress(run_name: str, gpu: int, status: str, duration_s: float = 0):
 # ──────────────────────────────────────────────────────────────
 
 
-def build_command(gpu_id: int, exp: Experiment) -> List[str]:
+def build_command(gpu_id: int, exp: Experiment, exp_name: str = EXP_NAME) -> List[str]:
     """Monta o comando train.sh para um experimento."""
     cmd = ["./train.sh"]
 
@@ -184,7 +220,7 @@ def build_command(gpu_id: int, exp: Experiment) -> List[str]:
         cmd.extend(["--contrastive-lambda", str(exp.contrastive_lambda)])
 
     cmd.extend([
-        "--exp-name",      EXP_NAME,
+        "--exp-name",      exp_name,
         "--attention-type", exp.attention_type,
         "--seq-modeling",  exp.sequence_modeling,
         "--device",        str(gpu_id),
@@ -196,9 +232,9 @@ def build_command(gpu_id: int, exp: Experiment) -> List[str]:
     return cmd
 
 
-def run_experiment(gpu_id: int, exp: Experiment) -> bool:
+def run_experiment(gpu_id: int, exp: Experiment, exp_name: str = EXP_NAME) -> bool:
     """Executa um experimento via train.sh. Retorna True em sucesso."""
-    cmd = build_command(gpu_id, exp)
+    cmd = build_command(gpu_id, exp, exp_name=exp_name)
     log_file = os.path.join(LOG_DIR, f"{exp.run_name}.log")
 
     tag = f"CTR-{exp.attention_type}" if exp.contrastive else "BASE"
@@ -248,7 +284,7 @@ def run_experiment(gpu_id: int, exp: Experiment) -> bool:
         return False
 
 
-def gpu_worker(gpu_id: int, queue: List[Experiment]):
+def gpu_worker(gpu_id: int, queue: List[Experiment], exp_name: str = EXP_NAME):
     """Process a queue of experiments sequentially on a single GPU."""
     total = len(queue)
     done = 0
@@ -256,7 +292,7 @@ def gpu_worker(gpu_id: int, queue: List[Experiment]):
 
     for i, exp in enumerate(queue, 1):
         print(f"  [GPU {gpu_id}] === Run {i}/{total} ===")
-        success = run_experiment(gpu_id, exp)
+        success = run_experiment(gpu_id, exp, exp_name=exp_name)
         if success:
             done += 1
         else:
@@ -277,6 +313,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Hyperparameter sweep for contrastive text recognition",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--exp-name", type=str, default=EXP_NAME,
+        help=f"MLflow experiment name (default: {EXP_NAME})",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -369,7 +409,7 @@ def main():
     for gpu, queue in gpu_queues.items():
         t = threading.Thread(
             target=gpu_worker,
-            args=(gpu, queue),
+            args=(gpu, queue, args.exp_name),
             name=f"GPU-{gpu}",
         )
         t.start()

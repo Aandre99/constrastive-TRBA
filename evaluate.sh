@@ -4,14 +4,11 @@ ATTENTION_TYPE="${ATTENTION_TYPE:-1D}"   # override: ATTENTION_TYPE=2D bash eval
 DATASET="cars_motors"
 
 if [ "$ATTENTION_TYPE" = "1D" ]; then
-    BASE_RUN_ID="684fc5e44b1340ccaff068a8244eff15"        # 1D base, 30k iters
-    CONTRASTIVE_RUN_ID="4f7f3195a8a348e5ab1d735da9a94b10" # 1D ctr, 30k iters
+    BASE_RUN_ID="0069f82abe4348cd9fdecd1705e114aa"        # 1D base BiLSTM, 30k iters
+    CONTRASTIVE_RUN_ID="f4795917a65d41608703a394422bd240" # 1D ctr BiLSTM, 30k iters
 elif [ "$ATTENTION_TYPE" = "2D" ]; then
-    #BASE_RUN_ID="374b080909b74ac7bdb705316e0bdf96"        # 2D base, 30k iters, TransformerLayer as SequenceModelling
-    #CONTRASTIVE_RUN_ID="3944c0a93ab84a72b565f391de8ed993" # 2D ctr, 30k iters, TransformerLayer as SequenceModelling
-    
-    BASE_RUN_ID="1dc07c744aed46849689da4fcf98b8cb"        # 2D BiLSTM base, 30k iters, BiLSTM as SequenceModelling
-    CONTRASTIVE_RUN_ID="210ea8b29cec4d70afd69084b0347de4" # 2D BiLSTM ctr, 30k iters, BiLSTM as SequenceModelling
+    BASE_RUN_ID="69910e232b684027a086373a5edb6bfa"        # 2D BiLSTM base, 30k iters
+    CONTRASTIVE_RUN_ID="e6b2c34f10e54a1096723fe2c83af3ed" # 2D BiLSTM ctr, 30k iters
 else
     echo "[erro] ATTENTION_TYPE inválido: '$ATTENTION_TYPE'. Use '1D' ou '2D'."
     exit 1
@@ -39,6 +36,7 @@ CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python $EVAL_SCRIPT \
         --Transformation None --FeatureExtraction ResNet \
         --SequenceModeling BiLSTM --Prediction Attn \
         --attention_type "$ATTENTION_TYPE" \
+        --imgH 64 --batch_max_length 8 --PAD \
         --use_contrastive \
         --contrastive_embedding_dim 128 \
         --output_dir outs/$RUN_MODE/$DATASET/contrastive_${ATTN_LOWER} \
@@ -50,6 +48,7 @@ CUDA_VISIBLE_DEVICES=$DEVICE PYENV_VERSION=torch131 python $EVAL_SCRIPT \
         --Transformation None --FeatureExtraction ResNet \
         --SequenceModeling BiLSTM --Prediction Attn \
         --attention_type "$ATTENTION_TYPE" \
+        --imgH 64 --batch_max_length 8 --PAD \
         --output_dir outs/$RUN_MODE/$DATASET/base_${ATTN_LOWER} \
         $EXTRA_ARGS
 
