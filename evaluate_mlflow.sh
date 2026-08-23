@@ -2,43 +2,60 @@
 # ==============================================================================
 # evaluate_mlflow.sh
 # ==============================================================================
-# Iterar sobre uma lista de RUN_ID do MLflow, executa a inferência do modelo
-# e registra as métricas diretamente em cada experimento do MLflow.
-#
-# Métricas registradas no MLflow:
-#   • Number of Errors
-#   • Plate Accuracy
-#   • Edition Distance
-#   • CER (Character Error Rate)
-#   • Quantidades de erros por classe (incluindo 0 para classes sem erros)
-#   • Taxa de erro por classe em relação ao número total de caracteres do teste
+# Executa a avaliação comparativa de múltiplos modelos MLflow, gerando:
+#   • Gráficos de barras comparativos (PNG)
+#   • Relatório Markdown com tabelas comparativas
+#   • Arquivo JSON com métricas brutas
 #
 # Uso:
 #   1. Com lista padrão (definida no script):
 #        ./evaluate_mlflow.sh
 #
 #   2. Passando RUN_IDs como argumentos:
-#        ./evaluate_mlflow.sh 684fc5e44b1340ccaff068a8244eff15 4f7f3195a8a348e5ab1d735da9a94b10
+#        ./evaluate_mlflow.sh RUN_ID1 RUN_ID2 RUN_ID3
 #
 #   3. Passando variáveis de ambiente:
-#        DEVICE=1 DATASET=cars ./evaluate_mlflow.sh RUN_ID1 RUN_ID2
+#        DEVICE=1 DATASET=cars OUTPUT_DIR=results ./evaluate_mlflow.sh
 # ==============================================================================
 
 set -e
 
 DEVICE="${DEVICE:-0}"
-DATASET="${DATASET:-cars_motors}"
+DATASET="${DATASET:-rodo_ufpr}"
 MLFLOW_MODEL="${MLFLOW_MODEL:-best_accuracy.pth}"
+OUTPUT_DIR="${OUTPUT_DIR:-evaluation_results}"
 
 # Lista padrão de RUN_IDs se nenhuma for fornecida
+
+# Modelos Treinados em rodo_ufpr
+
+# DEFAULT_RUN_IDS=(
+#    "21f5c3592f234b2db13fedb17a27427e" # CTR + TPS + 1D
+#    "244cd7823c6a4c3f98ebca50d22ee6b6" # CTR + 2D
+#    "4303cfd894ce4ec893264a32e8d28928" # CTR + 1D
+#    "4417bd02df8e421ab9e54cb4f144cf76" # CTR + TPS + 2D
+#    "84681ead5d8c4b9396555aaa4cacc156" # BASE + 2D
+#    "8661db20381847d18da5d6a32cf03b58" # BASE + TPS + 2D
+#    "878279ffc06549529ac3e8ee4e1c8f31" # BASE + 1D
+#    "e4e5e0139b8d4b5f858d727854407ef2" # BASE TPS + 1D
+#)
+
+# Modelos Treinados em rodo
+
+#DEFAULT_RUN_IDS=(
+#    "c614e91c1d8a45ec84ba7fc6db996d2e" # CTR + TPS + 2D 
+#    "1bb18edff9ab4710af1aa20dd2163199" # BASE + TPS + 2D
+#    "54a3666a84b34c23a027e4a80ae7fb7e" # BASE + TPS + 1D
+#    "7b9c2190df97432e9099dedcd13185d9" # CTR + TPS + 1D
+#)
+   
+# Modelos Treinados em ufpr
+
 DEFAULT_RUN_IDS=(
-    "e6b2c34f10e54a1096723fe2c83af3ed"  # 2D Contrastive BiLSTM
-    "6cafd661c95a4503bfdec405b1411f76"  # 2D Contrastive Transformer
-    "afed7b90b7db424fba6c55761bea9d83"  # 2D Contrastive None
-    "f4795917a65d41608703a394422bd240"  # 1D Contrastivo BiLSTM
-    "69910e232b684027a086373a5edb6bfa"  # 2D Base BiLSTM
-    "0069f82abe4348cd9fdecd1705e114aa"  # 1D Base BiLSTM
-    "112da01633734f7aad70a137ecb3ebd1"  # 2D Base None
+    "bb029128e334469dabaefee474131cd1" # CTR + TPS + 1D 
+    "691231fe325d4c4ba1bb9eab8d24c343" # CTR + TPS + 2D 
+    "6d12dea976804d93b709455c468e4dae" # BASE + TPS + 1D
+    "9ab6c40e9b3b45b486d63ad6778ed34e" # CTR + TPS + 2D
 )
 
 # Resolução da lista de RUN_IDs
@@ -51,46 +68,26 @@ else
 fi
 
 echo "========================================================================"
-echo "  AVALIAÇÃO MLFLOW - INICIANDO PROCESSAMENTO DE ${#RUN_IDS[@]} RUN(S)"
+echo "  AVALIAÇÃO COMPARATIVA - ${#RUN_IDS[@]} MODELO(S)"
 echo "========================================================================"
 echo "  Dataset       : $DATASET"
 echo "  Device        : GPU $DEVICE"
 echo "  Modelo MLflow : $MLFLOW_MODEL"
+echo "  Output Dir    : $OUTPUT_DIR"
+echo "  Run IDs       :"
+for RUN_ID in "${RUN_IDS[@]}"; do
+    echo "    • $RUN_ID"
+done
 echo "========================================================================"
 
-FAILED_RUNS=()
-SUCCESS_RUNS=()
-
-for RUN_ID in "${RUN_IDS[@]}"; do
-    echo ""
-    echo "------------------------------------------------------------------------"
-    echo "  [$(date +'%H:%M:%S')] Executando avaliação para RUN_ID: $RUN_ID"
-    echo "------------------------------------------------------------------------"
-    
-    if CUDA_VISIBLE_DEVICES=$DEVICE python evaluate_mlflow.py \
-        --mlflow_run_id "$RUN_ID" \
-        --dataset "$DATASET" \
-        --mlflow_model "$MLFLOW_MODEL"; then
-        
-        SUCCESS_RUNS+=("$RUN_ID")
-        echo "[sucesso] RUN_ID $RUN_ID processado e loggado no MLflow."
-    else
-        FAILED_RUNS+=("$RUN_ID")
-        echo "[erro] Falha ao processar RUN_ID $RUN_ID."
-    fi
-done
+CUDA_VISIBLE_DEVICES=$DEVICE python evaluate_mlflow.py \
+    --mlflow_run_id "${RUN_IDS[@]}" \
+    --dataset "$DATASET" \
+    --mlflow_model "$MLFLOW_MODEL" \
+    --output_dir "$OUTPUT_DIR"
 
 echo ""
 echo "========================================================================"
-echo "  RESUMO DA EXECUÇÃO DE AVALIAÇÃO MLFLOW"
-echo "========================================================================"
-echo "  Total de Runs Processadas : ${#RUN_IDS[@]}"
-echo "  Sucesso                   : ${#SUCCESS_RUNS[@]}"
-echo "  Falhas                    : ${#FAILED_RUNS[@]}"
-
-if [ "${#FAILED_RUNS[@]}" -gt 0 ]; then
-    echo "  Runs com falha            : ${FAILED_RUNS[*]}"
-    exit 1
-fi
-
+echo "  ✅ Avaliação comparativa concluída!"
+echo "  📁 Resultados em: $OUTPUT_DIR/"
 echo "========================================================================"

@@ -5,12 +5,17 @@ sweep.py — Automated hyperparameter sweep for contrastive training.
 Distributes experiments across GPUs (default: 0, 1, 2), running one
 experiment per GPU at a time. Tracks progress in a CSV for resumability.
 
+Experimentos (8 total, 4 Base + 4 Contrastivo):
+  ±TPS (Transformation) × {1D, 2D} Attention
+
 Usage:
-    python sweep.py                    # Run full sweep (117 experiments)
-    python sweep.py --dry-run          # Preview all runs without executing
-    python sweep.py --gpus 0 1         # Use only GPUs 0 and 1
-    python sweep.py --only-baseline    # Run only baseline (no contrastive)
-    python sweep.py --only-contrastive # Run only contrastive experiments
+    python sweep.py                         # Run full sweep (all datasets)
+    python sweep.py --dry-run               # Preview all runs without executing
+    python sweep.py --gpus 0 1              # Use only GPUs 0 and 1
+    python sweep.py --only-baseline         # Run only baseline (no contrastive)
+    python sweep.py --only-contrastive      # Run only contrastive experiments
+    python sweep.py --datasets rodo ufpr    # Run on rodo and ufpr separately
+    python sweep.py --datasets rodo_ufpr    # Run on combined dataset only
 """
 
 import argparse
@@ -36,9 +41,13 @@ CONTRASTIVE_LAMBDA = 0.6
 CONTRASTIVE_MINING = "semihard"
 
 DEFAULT_GPUS = [0, 1, 2]
-EXP_NAME = "CTRBA-MSC"
+EXP_NAME = "CTRBA-RODO-ALPR"
 LOG_DIR = "sweep_logs"
 PROGRESS_FILE = os.path.join(LOG_DIR, "progress.csv")
+
+# Available datasets under data_lmdb/
+AVAILABLE_DATASETS = ["rodo", "ufpr", "rodo_ufpr"]
+DEFAULT_DATASETS   = ["rodo", "ufpr", "rodo_ufpr"]
 
 PROGRESS_FIELDS = ["timestamp", "run_name", "gpu", "status", "duration_min"]
 
@@ -55,20 +64,28 @@ class Experiment:
     contrastive: bool
     attention_type: str = '1D'           # '1D' ou '2D'
     sequence_modeling: str = 'BiLSTM'   # 'BiLSTM' | 'Transformer' | 'None'
+    use_tps: bool = True                 # True → TPS, False → None
+    dataset: str = 'rodo_ufpr'           # 'rodo' | 'ufpr' | 'rodo_ufpr'
     contrastive_margin: Optional[float] = None
     contrastive_lambda: Optional[float] = None
+
+    @property
+    def transformation(self) -> str:
+        return 'TPS' if self.use_tps else 'None'
 
     @property
     def run_name(self) -> str:
         """Nome único do run para identificação no MLflow."""
         iter_k = self.num_iter // 1000
         attn = self.attention_type.lower()
+        tps = 'tps' if self.use_tps else 'notps'
         seq = f"_{self.sequence_modeling.lower()}"
+        ds = self.dataset.lower()
         if not self.contrastive:
-            return f"base_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}"
+            return f"base_{tps}_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}_{ds}"
         return (
-            f"ctr_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}"
-            f"_m{self.contrastive_margin}_lam{self.contrastive_lambda}"
+            f"ctr_{tps}_{attn}{seq}_iter{iter_k}k_bs{self.batch_size}"
+            f"_m{self.contrastive_margin}_lam{self.contrastive_lambda}_{ds}"
         )
 
 
@@ -84,88 +101,98 @@ _csv_lock = threading.Lock()
 def generate_experiments(
     include_baseline: bool = True,
     include_contrastive: bool = True,
+    datasets: Optional[List[str]] = None,
 ) -> List[Experiment]:
     """
-    Gera a matriz completa de experimentos (Base vs Contrastivo, 1D vs 2D):
-      Modelos Base:
-        1. Base 1D BiLSTM
-        2. Base 2D BiLSTM
-        3. Base 2D None (ablação de controle)
-      Modelos Contrastivos:
-        4. Contrastivo 1D BiLSTM
-        5. Contrastivo 2D BiLSTM
-        6. Contrastivo 2D Transformer
-        7. Contrastivo 2D None (ablação)
+    Gera a matriz de experimentos por dataset:
+
+      Base (2 por dataset):
+        1.  Base  | TPS   | Attn 1D | BiLSTM
+        2.  Base  | TPS   | Attn 2D | BiLSTM
+
+      Contrastivo (2 por dataset):
+        3.  CTR   | TPS   | Attn 1D | BiLSTM
+        4.  CTR   | TPS   | Attn 2D | BiLSTM
+
+    Cada grupo é repetido para cada dataset em `datasets`.
     """
+    if datasets is None:
+        datasets = DEFAULT_DATASETS
+
     experiments = []
 
-    if include_baseline:
-        # 1. Base 1D BiLSTM
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=False,
-            attention_type='1D',
-            sequence_modeling='BiLSTM',
-        ))
-        # 2. Base 2D BiLSTM
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=False,
-            attention_type='2D',
-            sequence_modeling='BiLSTM',
-        ))
-        # 3. Base 2D None (Ablação de controle)
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=False,
-            attention_type='2D',
-            sequence_modeling='None',
-        ))
+    for ds in datasets:
+        if include_baseline:
+            # 1. Base | TPS | 1D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=False, attention_type='1D',
+                sequence_modeling='BiLSTM', use_tps=True,
+                dataset=ds,
+            ))
+            # 2. Base | TPS | 2D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=False, attention_type='2D',
+                sequence_modeling='BiLSTM', use_tps=True,
+                dataset=ds,
+            ))
+            """
+            # 3. Base | NoTPS | 1D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=False, attention_type='1D',
+                sequence_modeling='BiLSTM', use_tps=False,
+                dataset=ds,
+            ))
 
-    if include_contrastive:
-        # 4. Contrastivo 1D BiLSTM
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=True,
-            attention_type='1D',
-            sequence_modeling='BiLSTM',
-            contrastive_margin=CONTRASTIVE_MARGIN,
-            contrastive_lambda=CONTRASTIVE_LAMBDA,
-        ))
-        # 5. Contrastivo 2D BiLSTM
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=True,
-            attention_type='2D',
-            sequence_modeling='BiLSTM',
-            contrastive_margin=CONTRASTIVE_MARGIN,
-            contrastive_lambda=CONTRASTIVE_LAMBDA,
-        ))
-        # 6. Contrastivo 2D Transformer
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=True,
-            attention_type='2D',
-            sequence_modeling='Transformer',
-            contrastive_margin=CONTRASTIVE_MARGIN,
-            contrastive_lambda=CONTRASTIVE_LAMBDA,
-        ))
-        # 7. Contrastivo 2D None (Ablação)
-        experiments.append(Experiment(
-            num_iter=NUM_ITER,
-            batch_size=BATCH_SIZE,
-            contrastive=True,
-            attention_type='2D',
-            sequence_modeling='None',
-            contrastive_margin=CONTRASTIVE_MARGIN,
-            contrastive_lambda=CONTRASTIVE_LAMBDA,
-        ))
+            # 4. Base | NoTPS | 2D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=False, attention_type='2D',
+                sequence_modeling='BiLSTM', use_tps=False,
+                dataset=ds,
+            ))
+            """
+
+        if include_contrastive:
+            # 5. CTR | TPS | 1D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=True, attention_type='1D',
+                sequence_modeling='BiLSTM', use_tps=True,
+                dataset=ds,
+                contrastive_margin=CONTRASTIVE_MARGIN,
+                contrastive_lambda=CONTRASTIVE_LAMBDA,
+            ))
+            # 6. CTR | TPS | 2D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=True, attention_type='2D',
+                sequence_modeling='BiLSTM', use_tps=True,
+                dataset=ds,
+                contrastive_margin=CONTRASTIVE_MARGIN,
+                contrastive_lambda=CONTRASTIVE_LAMBDA,
+            ))
+            """
+            # 7. CTR | NoTPS | 1D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=True, attention_type='1D',
+                sequence_modeling='BiLSTM', use_tps=False,
+                dataset=ds,
+                contrastive_margin=CONTRASTIVE_MARGIN,
+                contrastive_lambda=CONTRASTIVE_LAMBDA,
+            ))
+            # 8. CTR | NoTPS | 2D
+            experiments.append(Experiment(
+                num_iter=NUM_ITER, batch_size=BATCH_SIZE,
+                contrastive=True, attention_type='2D',
+                sequence_modeling='BiLSTM', use_tps=False,
+                dataset=ds,
+                contrastive_margin=CONTRASTIVE_MARGIN,
+                contrastive_lambda=CONTRASTIVE_LAMBDA,
+            ))"""
 
     return experiments
 
@@ -220,13 +247,15 @@ def build_command(gpu_id: int, exp: Experiment, exp_name: str = EXP_NAME) -> Lis
         cmd.extend(["--contrastive-lambda", str(exp.contrastive_lambda)])
 
     cmd.extend([
-        "--exp-name",      exp_name,
+        "--exp-name",       exp_name,
         "--attention-type", exp.attention_type,
-        "--seq-modeling",  exp.sequence_modeling,
-        "--device",        str(gpu_id),
-        "--num-iter",      str(exp.num_iter),
-        "--batch-size",    str(exp.batch_size),
-        "--run_name",      exp.run_name,
+        "--seq-modeling",   exp.sequence_modeling,
+        "--transformation", exp.transformation,
+        "--device",         str(gpu_id),
+        "--num-iter",       str(exp.num_iter),
+        "--batch-size",     str(exp.batch_size),
+        "--run_name",       exp.run_name,
+        "--dataset",        exp.dataset,
     ])
 
     return cmd
@@ -334,6 +363,14 @@ def main():
         "--only-contrastive", action="store_true",
         help="Run only contrastive experiments",
     )
+    parser.add_argument(
+        "--datasets", type=str, nargs="+", default=DEFAULT_DATASETS,
+        choices=AVAILABLE_DATASETS,
+        help=(
+            f"Datasets to use for experiments (default: {DEFAULT_DATASETS}). "
+            "Choices: rodo, ufpr, rodo_ufpr"
+        ),
+    )
     args = parser.parse_args()
 
     gpus = args.gpus
@@ -343,32 +380,31 @@ def main():
     include_baseline = not args.only_contrastive
     include_contrastive = not args.only_baseline
 
-    all_experiments = generate_experiments(include_baseline, include_contrastive)
+    all_experiments = generate_experiments(
+        include_baseline, include_contrastive, datasets=args.datasets
+    )
 
     # Filter out already completed runs (resumability)
     completed = load_completed_runs()
     pending = [e for e in all_experiments if e.run_name not in completed]
 
-    n_base_1d = sum(1 for e in all_experiments if not e.contrastive and e.attention_type == '1D')
-    n_base_2d = sum(1 for e in all_experiments if not e.contrastive and e.attention_type == '2D')
-    n_ctr_1d  = sum(1 for e in all_experiments if e.contrastive and e.attention_type == '1D')
-    n_ctr_2d  = sum(1 for e in all_experiments if e.contrastive and e.attention_type == '2D')
     n_pending_baseline = sum(1 for e in pending if not e.contrastive)
     n_pending_ctr      = sum(1 for e in pending if e.contrastive)
 
     print(f"\n{'=' * 60}")
-    print(f"  Experimentos de Treinamento")
+    print(f"  Experimentos de Treinamento — {EXP_NAME}")
     print(f"{'=' * 60}")
-    print(f"  Total:               {len(all_experiments)}")
-    print(f"    Base 1D:           {n_base_1d}")
-    print(f"    Base 2D:           {n_base_2d}")
-    print(f"    Contrastivo 1D:    {n_ctr_1d}")
-    print(f"    Contrastivo 2D:    {n_ctr_2d}")
-    print(f"  Já concluídos:       {len(completed)}")
-    print(f"  Pendentes:           {len(pending)}")
-    print(f"    Base:              {n_pending_baseline}")
-    print(f"    Contrastivo:       {n_pending_ctr}")
-    print(f"  GPUs:                {gpus}")
+    print(f"  Datasets:                 {args.datasets}")
+    print(f"  Total:                    {len(all_experiments)}")
+    for ds in args.datasets:
+        n_base = sum(1 for e in all_experiments if not e.contrastive and e.dataset == ds)
+        n_ctr  = sum(1 for e in all_experiments if e.contrastive and e.dataset == ds)
+        print(f"    [{ds:12s}] Base: {n_base}, CTR: {n_ctr}")
+    print(f"  Já concluídos:            {len(completed)}")
+    print(f"  Pendentes:                {len(pending)}")
+    print(f"    Base:                   {n_pending_baseline}")
+    print(f"    Contrastivo:            {n_pending_ctr}")
+    print(f"  GPUs:                     {gpus}")
     print(f"{'=' * 60}")
 
     if args.dry_run:

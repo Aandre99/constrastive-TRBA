@@ -309,7 +309,7 @@ def parse_args():
     # ── entrada / saída (espelha evaluate.py) ────────────────────────────────
     parser.add_argument('--input', default='')
     parser.add_argument('--dataset', type=str, default='',
-                        choices=['cars', 'cars_motors'])
+                        choices=['cars', 'cars_motors', 'rodo_ufpr'])
     parser.add_argument('--output_dir', default='result_visualize_multi/')
     parser.add_argument('--max_label_len', type=int, default=7)
 

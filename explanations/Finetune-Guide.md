@@ -19,24 +19,92 @@ dataset/
 
 > **Formato do `gt.txt`** (separador = **tab `\t`**)
 > ```
-> img_000002.jpg    PPC5431
-> img_000004.jpg    OVK7900
+> img_000002.jpg	PPC5431
+> img_000004.jpg	OVK7900
 > ```
-> O seu `dataset/gt.txt` já está nesse formato (confirmado).
+> O `create_lmdb_dataset.py` faz `split('\t')` — o separador **deve ser tab**.
 
 ---
 
 ## 2. Preparar os arquivos gt.txt para train e val
 
-Se você tiver os arquivos do Rodosol-ALPR organizados em `train/` e `val/`, crie um `gt.txt` para cada subset.
+O `gt.txt` lista, uma por linha, o **nome do arquivo de imagem** e a **label** (placa) separados por **tab (`\t`)**:
 
-**Exemplo – se o Rodosol usa CSVs ou JSONs:**
-```bash
-# Adapte conforme o formato original do Rodosol-ALPR
-# Supondo que haja um arquivo annotations.csv com colunas: filename, plate
-awk -F',' 'NR>1 {print $1 "\t" $2}' train/annotations.csv > train/gt.txt
-awk -F',' 'NR>1 {print $1 "\t" $2}' val/annotations.csv   > val/gt.txt
 ```
+img_000003.jpg	PJM6113
+track0001[01].png	AXV8804
+```
+
+> **Separador obrigatório: tab (`\t`).**  
+> O `create_lmdb_dataset.py` usa `split('\t')` na linha 47 — espaços causarão `ValueError`.
+
+---
+
+### 2.1 Dataset `cars_motors`
+
+O `cars_motors` já vem com `gt.txt` pronto em cada split — nenhuma ação necessária.
+
+---
+
+### 2.2 Dataset `rodo_ufpr`
+
+O `rodo_ufpr` contém imagens `.jpg` (estilo `img_000003.jpg`) e `.png` (estilo `track0001[01].png`), cada uma acompanhada de um arquivo `.txt` com o label da placa.
+
+Para gerar o `gt.txt` de cada split automaticamente a partir dos arquivos `.txt` individuais:
+
+```python
+import os
+import glob
+
+for split in ['train', 'val', 'test']:
+    dir_path = f'dataset/{split}/rodo_ufpr'
+    gt_path = f'{dir_path}/gt.txt'
+    lines = []
+    # Inclui .jpg e .png, ordenados
+    imgs = sorted(glob.glob(f'{dir_path}/*.jpg') + glob.glob(f'{dir_path}/*.png'))
+    for img_path in imgs:
+        img_name = os.path.basename(img_path)
+        base = os.path.splitext(img_path)[0]
+        txt_path = base + '.txt'
+        if os.path.exists(txt_path):
+            label = open(txt_path).read().strip()
+            lines.append(f'{img_name}\t{label}')  # separador = tab
+    open(gt_path, 'w').write('\n'.join(lines) + '\n')
+    print(f'{gt_path}: {len(lines)} entradas')
+```
+
+Execute na raiz do projeto:
+
+```bash
+python3 -c "
+import os, glob
+for split in ['train', 'val', 'test']:
+    dir_path = f'dataset/{split}/rodo_ufpr'
+    lines = []
+    imgs = sorted(glob.glob(f'{dir_path}/*.jpg') + glob.glob(f'{dir_path}/*.png'))
+    for img_path in imgs:
+        img_name = os.path.basename(img_path)
+        base = os.path.splitext(img_path)[0]
+        txt_path = base + '.txt'
+        if os.path.exists(txt_path):
+            label = open(txt_path).read().strip()
+            lines.append(f'{img_name}\\t{label}')
+    open(f'{dir_path}/gt.txt', 'w').write('\\n'.join(lines) + '\\n')
+    print(f'{dir_path}/gt.txt: {len(lines)} entradas')
+"
+```
+
+Resultado esperado (contagens aproximadas):
+
+| Split | Entradas |
+|-------|----------|
+| train | ~9.800   |
+| val   | ~4.900   |
+| test  | ~9.800   |
+
+> [!NOTE]
+> Se os `gt.txt` forem deletados, basta rodar o script acima para recriá-los.  
+> O script é idempotente — pode ser executado quantas vezes quiser.
 
 ---
 

@@ -87,7 +87,15 @@ def train(opt):
     if opt.saved_model != '':
         print(f'loading pretrained model from {opt.saved_model}')
         if opt.FT:
-            model.load_state_dict(torch.load(opt.saved_model), strict=False)
+            state_dict = torch.load(opt.saved_model)
+            # P_hat and inv_delta_C are resolution-dependent buffers recomputed at
+            # __init__ time. When fine-tuning with a different imgH (e.g. 64 vs
+            # the pretrained 32), their shapes won't match. Drop them so the model
+            # keeps its freshly-computed values. See transformation.py lines 98-102.
+            state_dict = {k: v for k, v in state_dict.items()
+                          if 'GridGenerator.P_hat' not in k
+                          and 'GridGenerator.inv_delta_C' not in k}
+            model.load_state_dict(state_dict, strict=False)
         else:
             model.load_state_dict(torch.load(opt.saved_model))
     print("Model:")
@@ -436,14 +444,12 @@ if __name__ == '__main__':
 
     # Validação attention_type
     if opt.attention_type == '2D':
-        if opt.Transformation == 'TPS':
-            print('[aviso] TPS incompatível com attention_type=2D. Desabilitando TPS.')
-            opt.Transformation = 'None'
         if opt.Prediction != 'Attn':
             raise ValueError('--attention_type 2D requer --Prediction Attn.')
         if opt.imgH < 48:
             print(f'[aviso] imgH={opt.imgH} gera H\'≤1 no ResNet, insuficiente para 2D. '
                   f'Recomenda-se imgH >= 48.')
+
 
     os.makedirs(f'./saved_models/{opt.exp_name}', exist_ok=True)
 

@@ -15,6 +15,8 @@ DEVICE=0
 ATTENTION_TYPE=1D
 SEQ_MODELING=BiLSTM
 EXP_NAME_OVERRIDE=
+TRANSFORMATION=
+DATASET=rodo_ufpr
 
 # Defaults
 NUM_ITER=30000
@@ -39,9 +41,14 @@ while [ $i -lt ${#args[@]} ]; do
         --attention-type)      i=$((i+1)); ATTENTION_TYPE="${args[$i]}" ;;
         --seq-modeling)        i=$((i+1)); SEQ_MODELING="${args[$i]}" ;;
         --exp-name)            i=$((i+1)); EXP_NAME_OVERRIDE="${args[$i]}" ;;
+        --transformation)      i=$((i+1)); TRANSFORMATION="${args[$i]}" ;;
+        --dataset)             i=$((i+1)); DATASET="${args[$i]}" ;;
     esac
     i=$((i+1))
 done
+
+# Default transformation: TPS se não especificado
+TRANSFORMATION="${TRANSFORMATION:-TPS}"
 
 # MLflow experiment name: --exp-name sobrepõe; fallback separa 1D/2D+seq
 if [ -n "$EXP_NAME_OVERRIDE" ]; then
@@ -52,9 +59,13 @@ else
     EXP_NAME="CTRBA"
 fi
 
+# Dataset paths
+TRAIN_DATA="data_lmdb/${DATASET}/train/"
+VALID_DATA="data_lmdb/${DATASET}/val/"
+
 BASE_ARGS=(
-    --train_data          data_lmdb/rodosol/train/cars_motors
-    --valid_data          data_lmdb/rodosol/val/cars_motors
+    --train_data          "$TRAIN_DATA"
+    --valid_data          "$VALID_DATA"
     --select_data         '/'
     --batch_ratio         '1.0'
     --saved_model         saved_models/TPS-ResNet-BiLSTM-Attn.pth
@@ -67,7 +78,7 @@ BASE_ARGS=(
     --PAD
     --batch_max_length    8
     --data_filtering_off
-    --Transformation      None
+    --Transformation      "$TRANSFORMATION"
     --FeatureExtraction   ResNet
     --SequenceModeling    "$SEQ_MODELING"
     --Prediction          Attn
