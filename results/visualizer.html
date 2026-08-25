@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics Visualizer</title>
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --bg-grad-1: #1e293b;
+            --bg-grad-2: #1e293b;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --border: rgba(255, 255, 255, 0.1);
+            --btn-bg: rgba(30, 41, 59, 0.9);
+            --btn-hover: rgba(30, 41, 59, 1);
+            --menu-bg: rgba(15, 23, 42, 0.95);
+            --menu-hover: rgba(255, 255, 255, 0.05);
+            --table-bg: rgba(15, 23, 42, 0.4);
+            --table-th-bg: #1e293b;
+            --table-border: rgba(255, 255, 255, 0.05);
+            --scrollbar-track: rgba(0, 0, 0, 0.1);
+            --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+            --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+        }
+
+        body.light-mode {
+            --bg-color: #f1f5f9;
+            --bg-grad-1: #e2e8f0;
+            --bg-grad-2: #e2e8f0;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --accent: #0ea5e9;
+            --border: rgba(0, 0, 0, 0.1);
+            --btn-bg: rgba(255, 255, 255, 0.9);
+            --btn-hover: rgba(255, 255, 255, 1);
+            --menu-bg: rgba(255, 255, 255, 0.95);
+            --menu-hover: rgba(0, 0, 0, 0.05);
+            --table-bg: rgba(255, 255, 255, 0.4);
+            --table-th-bg: #e2e8f0;
+            --table-border: rgba(0, 0, 0, 0.05);
+            --scrollbar-track: rgba(0, 0, 0, 0.05);
+            --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+            --scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, var(--bg-grad-1), transparent 40%),
+                radial-gradient(circle at bottom left, var(--bg-grad-2), transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1,
+        h2 {
+            font-weight: 600;
+            margin-top: 0;
+            letter-spacing: -0.025em;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: -webkit-linear-gradient(45deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        .selector-container {
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(56, 189, 248, 0.1);
+            padding: 8px 16px;
+            border-radius: 9999px;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            font-weight: 500;
+            user-select: none;
+        }
+
+        .checkbox-label:hover {
+            background: rgba(56, 189, 248, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .checkbox-label input {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* Dropdowns */
+        .dropdown-container {
+            position: relative;
+            display: inline-block;
+            margin-right: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .dropdown-btn {
+            background: var(--btn-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-width: 200px;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-btn:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+            background: var(--btn-hover);
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--menu-bg);
+            backdrop-filter: blur(10px);
+            min-width: 250px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px;
+            z-index: 10;
+            margin-top: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .dropdown-menu.show {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .dropdown-menu .checkbox-label {
+            border: none;
+            background: transparent;
+            border-radius: 4px;
+            padding: 8px 12px;
+        }
+
+        .dropdown-menu .checkbox-label:hover {
+            background: var(--menu-hover);
+            transform: none;
+        }
+
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--table-bg);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--table-th-bg);
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        tbody td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--table-border);
+            transition: background 0.2s ease;
+        }
+
+        tbody tr:hover td {
+            background: var(--menu-hover);
+        }
+
+        tbody td strong {
+            color: var(--accent);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover);
+        }
+
+        .fallback-loader {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 40vh;
+        }
+
+        .file-input-wrapper {
+            background: var(--card-bg);
+            border: 2px dashed var(--border);
+            padding: 3rem;
+            border-radius: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .file-input-wrapper:hover {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.05);
+            transform: scale(1.02);
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 2rem;">
+            <h1 style="margin-bottom: 0;">Dashboard de Métricas</h1>
+            <button class="dropdown-btn" onclick="toggleTheme()"
+                style="margin: 0; padding: 0.5rem 1rem; border-radius: 8px;">Alternar Tema 🌓</button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loader" class="fallback-loader">
+            <div class="spinner"></div>
+            <p style="color: var(--text-muted);">Tentando carregar metrics.json automaticamente...</p>
+        </div>
+
+        <!-- File Picker -->
+        <div id="file-picker-container" class="fallback-loader" style="display: none;">
+            <div class="file-input-wrapper" onclick="document.getElementById('file-input').click()">
+                <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                    style="color: #38bdf8; margin-bottom: 1rem;">
+                    <!-- Folder Icon -->
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                </svg>
+                <p style="font-size: 1.1rem; color: var(--text-main);"><strong>Clique aqui para selecionar a pasta com
+                        os resultados (.json e .csv)</strong></p>
+                <input type="file" id="file-input" webkitdirectory directory multiple onchange="handleFolder(event)"
+                    style="display: none;" />
+            </div>
+        </div>
+
+        <!-- Main App content -->
+        <div id="app" style="display: none;">
+
+            <!-- Global Filters -->
+            <div
+                style="display: flex; flex-wrap: wrap; margin-bottom: 2rem; align-items: flex-start; background: var(--card-bg); padding: 16px 24px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <div style="margin-right: 1.5rem; display: flex; align-items: center; height: 42px;">
+                    <strong style="color: var(--accent); font-size: 1.1rem;">Global Model Filter:</strong>
+                </div>
+                <div class="dropdown-container" style="margin-bottom: 0;">
+                    <button class="dropdown-btn" onclick="toggleDropdown('global-model-dropdown-menu')"
+                        style="border-color: var(--accent);">
+                        Select Models <span style="font-size: 0.8em;">▼</span>
+                    </button>
+                    <div id="global-model-dropdown-menu" class="dropdown-menu"></div>
+                </div>
+                <div class="dropdown-container" style="margin-bottom: 0;">
+                    <select id="tps-filter" onchange="applySemanticFilters()" class="dropdown-btn"
+                        style="border-color: var(--accent); appearance: auto; background-color: var(--card-bg); color: var(--text-main); font-weight: 500; min-width: 120px;">
+                        <option value="ALL">TPS: All</option>
+                        <option value="SIM">TPS: Yes</option>
+                        <option value="NAO">TPS: No</option>
+                    </select>
+                </div>
+                <div class="dropdown-container" style="margin-bottom: 0; margin-right: 1rem;">
+                    <select id="att-filter" onchange="applySemanticFilters()" class="dropdown-btn"
+                        style="border-color: var(--accent); appearance: auto; background-color: var(--card-bg); color: var(--text-main); font-weight: 500; min-width: 140px;">
+                        <option value="ALL">Attention: All</option>
+                        <option value="1D">Attention: 1D</option>
+                        <option value="2D">Attention: 2D</option>
+                    </select>
+                </div>
+                <button class="dropdown-btn"
+                    style="min-width: auto; padding: 10px 16px; margin-bottom: 0; color: var(--text-muted);"
+                    onclick="resetGlobalFilters()" title="Clear Global Filters">
+                    Clear Filters ✖
+                </button>
+            </div>
+
+            <!-- Chart Section -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">Model Accuracy</h2>
+                    <button class="dropdown-btn" onclick="exportChart('accuracyChart', 'acuracia_modelos.png')"
+                        style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
+                        PNG</button>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
+                    <div class="dropdown-container">
+                        <button class="dropdown-btn" onclick="toggleDropdown('accuracy-model-dropdown-menu')">
+                            Select Models <span style="font-size: 0.8em;">▼</span>
+                        </button>
+                        <div id="accuracy-model-dropdown-menu" class="dropdown-menu"></div>
+                    </div>
+                    <button class="dropdown-btn"
+                        style="min-width: auto; padding: 10px 16px; margin-bottom: 1rem; color: var(--text-muted);"
+                        onclick="resetAccuracyFilters()" title="Clear Filters">
+                        Clear Filters ✖
+                    </button>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="accuracyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Errors Chart Section -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">Errors per Class</h2>
+                    <button class="dropdown-btn" onclick="exportChart('errorsChart', 'erros_classe.png')"
+                        style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
+                        PNG</button>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
+                    <div class="dropdown-container">
+                        <button class="dropdown-btn" onclick="toggleDropdown('model-dropdown-menu')">
+                            Select Models <span style="font-size: 0.8em;">▼</span>
+                        </button>
+                        <div id="model-dropdown-menu" class="dropdown-menu"></div>
+                    </div>
+
+                    <div class="dropdown-container">
+                        <button class="dropdown-btn" onclick="toggleDropdown('class-dropdown-menu')">
+                            Select Classes <span style="font-size: 0.8em;">▼</span>
+                        </button>
+                        <div id="class-dropdown-menu" class="dropdown-menu"></div>
+                    </div>
+
+                    <button class="dropdown-btn"
+                        style="min-width: auto; padding: 10px 16px; margin-bottom: 1rem; color: var(--text-muted);"
+                        onclick="resetErrorsFilters()" title="Clear Filters">
+                        Clear Filters ✖
+                    </button>
+                </div>
+
+                <div class="table-container" style="overflow-x: auto; padding-bottom: 1rem;">
+                    <div id="errors-chart-wrapper" style="position: relative; height: 400px; width: 100%;">
+                        <canvas id="errorsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dataset Accuracy Chart Section -->
+            <div class="card" id="dataset-accuracy-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">Accuracy per Dataset</h2>
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="dropdown-btn" onclick="exportChart('datasetChart', 'acuracia_dataset.png')"
+                            style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
+                            PNG</button>
+                    </div>
+                </div>
+
+                <div id="dataset-filters"
+                    style="display: none; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
+                    <div class="dropdown-container">
+                        <button class="dropdown-btn" onclick="toggleDropdown('dataset-model-dropdown-menu')">
+                            Select Models <span style="font-size: 0.8em;">▼</span>
+                        </button>
+                        <div id="dataset-model-dropdown-menu" class="dropdown-menu"></div>
+                    </div>
+                    <button class="dropdown-btn"
+                        style="min-width: auto; padding: 10px 16px; margin-bottom: 1rem; color: var(--text-muted);"
+                        onclick="resetDatasetFilters()" title="Clear Filters">
+                        Clear Filters ✖
+                    </button>
+                </div>
+
+                <div class="table-container" id="dataset-chart-container"
+                    style="display: none; overflow-x: auto; padding-bottom: 1rem;">
+                    <div id="dataset-chart-wrapper" style="position: relative; height: 400px; width: 100%;">
+                        <canvas id="datasetChart"></canvas>
+                    </div>
+                </div>
+                <div id="dataset-placeholder" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Select the generated .csv files to enable this chart.
+                </div>
+            </div>
+
+            <!-- Vehicle Type Accuracy Chart Section -->
+            <div class="card" id="vehicle-type-accuracy-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">Accuracy per Vehicle Type</h2>
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="dropdown-btn"
+                            onclick="exportChart('vehicleTypeChart', 'acuracia_vehicle_type.png')"
+                            style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
+                            PNG</button>
+                    </div>
+                </div>
+
+                <div id="vehicle-type-filters"
+                    style="display: none; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
+                    <div class="dropdown-container">
+                        <button class="dropdown-btn" onclick="toggleDropdown('vehicle-type-model-dropdown-menu')">
+                            Select Models <span style="font-size: 0.8em;">▼</span>
+                        </button>
+                        <div id="vehicle-type-model-dropdown-menu" class="dropdown-menu"></div>
+                    </div>
+                    <button class="dropdown-btn"
+                        style="min-width: auto; padding: 10px 16px; margin-bottom: 1rem; color: var(--text-muted);"
+                        onclick="resetVehicleTypeFilters()" title="Clear Filters">
+                        Clear Filters ✖
+                    </button>
+                </div>
+
+                <div class="table-container" id="vehicle-type-chart-container"
+                    style="display: none; overflow-x: auto; padding-bottom: 1rem;">
+                    <div id="vehicle-type-chart-wrapper" style="position: relative; height: 400px; width: 100%;">
+                        <canvas id="vehicleTypeChart"></canvas>
+                    </div>
+                </div>
+                <div id="vehicle-type-placeholder" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Select the generated .csv files to enable this chart.
+                </div>
+            </div>
+
+            <!-- CER Chart Section -->
+            <div class="card" id="cer-chart-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">Global Character Error Rate (CER)</h2>
+                    <button class="dropdown-btn" onclick="exportChart('cerChart', 'cer_global.png')"
+                        style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
+                        PNG</button>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
+                    <div class="dropdown-container">
+                        <button class="dropdown-btn" onclick="toggleDropdown('cer-model-dropdown-menu')">
+                            Select Models <span style="font-size: 0.8em;">▼</span>
+                        </button>
+                        <div id="cer-model-dropdown-menu" class="dropdown-menu"></div>
+                    </div>
+                    <button class="dropdown-btn"
+                        style="min-width: auto; padding: 10px 16px; margin-bottom: 1rem; color: var(--text-muted);"
+                        onclick="resetCerFilters()" title="Clear Filters">
+                        Clear Filters ✖
+                    </button>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="cerChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getThemeColors() {
+            const isLight = document.body.classList.contains('light-mode');
+            return {
+                isLight,
+                tooltipBg: isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(15, 23, 42, 0.95)',
+                tooltipBorder: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+                tooltipTitleColor: isLight ? '#0f172a' : '#fff',
+                tooltipBodyColor: isLight ? '#475569' : '#fff',
+                gridColor: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)',
+                tickColor: isLight ? '#475569' : '#94a3b8',
+                legendColor: isLight ? '#0f172a' : '#f8fafc',
+                exportBg: isLight ? '#f1f5f9' : '#0f172a',
+                refBarColor: isLight ? '#475569' : '#94a3b8'
+            };
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            if (chartInstance) renderChart();
+            if (errorsChartInstance) renderErrorsChart();
+            if (datasetChartInstance) renderDatasetChart();
+            if (cerChartInstance) renderCerChart();
+            if (vehicleTypeChartInstance) renderVehicleTypeChart();
+        }
+
+        function exportChart(canvasId, fileName) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            // Cria um canvas temporário para desenhar o fundo (já que o original é transparente)
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const ctx = tempCanvas.getContext('2d');
+
+            const theme = getThemeColors();
+            // Fundo escuro igual ao do app
+            ctx.fillStyle = theme.exportBg;
+            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            // Desenha o gráfico por cima
+            ctx.drawImage(canvas, 0, 0);
+
+            // Faz o download
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function updateAllChartsFromGlobal() {
+            const globalCbs = document.querySelectorAll('#global-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+
+            const accCbs = document.querySelectorAll('#accuracy-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            accCbs.forEach((cb, i) => { if (globalCbs[i]) cb.checked = globalCbs[i].checked; });
+            const accAllCb = document.querySelector('#accuracy-model-dropdown-menu .select-all');
+            if (accAllCb) accAllCb.checked = Array.from(accCbs).every(c => c.checked);
+
+            const errCbs = document.querySelectorAll('#model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            errCbs.forEach((cb, i) => { if (globalCbs[i]) cb.checked = globalCbs[i].checked; });
+            const errAllCb = document.querySelector('#model-dropdown-menu .select-all');
+            if (errAllCb) errAllCb.checked = Array.from(errCbs).every(c => c.checked);
+
+            const datasetCbs = document.querySelectorAll('#dataset-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            datasetCbs.forEach(cb => {
+                const dsModelLabel = cb.nextSibling.textContent;
+                const gCb = Array.from(globalCbs).find(g => g.nextSibling.textContent === dsModelLabel);
+                if (gCb) cb.checked = gCb.checked;
+            });
+            const dsAllCb = document.querySelector('#dataset-model-dropdown-menu .select-all');
+            if (dsAllCb) dsAllCb.checked = Array.from(datasetCbs).every(c => c.checked);
+
+            const cerCbs = document.querySelectorAll('#cer-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            cerCbs.forEach((cb, i) => { if (globalCbs[i]) cb.checked = globalCbs[i].checked; });
+            const cerAllCb = document.querySelector('#cer-model-dropdown-menu .select-all');
+            if (cerAllCb) cerAllCb.checked = Array.from(cerCbs).every(c => c.checked);
+
+            const vtCbs = document.querySelectorAll('#vehicle-type-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            vtCbs.forEach(cb => {
+                const dsModelLabel = cb.nextSibling.textContent;
+                const gCb = Array.from(globalCbs).find(g => g.nextSibling.textContent === dsModelLabel);
+                if (gCb) cb.checked = gCb.checked;
+            });
+            const vtAllCb = document.querySelector('#vehicle-type-model-dropdown-menu .select-all');
+            if (vtAllCb) vtAllCb.checked = Array.from(vtCbs).every(c => c.checked);
+
+            if (chartInstance) renderChart();
+            if (errorsChartInstance) renderErrorsChart();
+            if (datasetChartInstance) renderDatasetChart();
+            if (cerChartInstance) renderCerChart();
+            if (vehicleTypeChartInstance) renderVehicleTypeChart();
+        }
+
+        function renderGlobalModelSelector() {
+            const container = document.getElementById('global-model-dropdown-menu');
+            container.innerHTML = '';
+
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid var(--border)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                updateAllChartsFromGlobal();
+            };
+
+            metricsData.models.forEach((m, index) => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = index;
+                cb.checked = true;
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    updateAllChartsFromGlobal();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(m.label));
+                container.appendChild(label);
+            });
+        }
+
+        function applySemanticFilters() {
+            const tpsVal = document.getElementById('tps-filter').value;
+            const attVal = document.getElementById('att-filter').value;
+
+            const globalCbs = document.querySelectorAll('#global-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            const globalAllCb = document.querySelector('#global-model-dropdown-menu .select-all');
+
+            globalCbs.forEach(cb => {
+                const label = cb.nextSibling.textContent;
+                let pass = true;
+
+                if (tpsVal === 'SIM' && !label.includes('TPS')) pass = false;
+                if (tpsVal === 'NAO' && label.includes('TPS')) pass = false;
+
+                if (attVal === '1D' && !label.includes('1D')) pass = false;
+                if (attVal === '2D' && !label.includes('2D')) pass = false;
+
+                cb.checked = pass;
+            });
+
+            if (globalAllCb) {
+                globalAllCb.checked = Array.from(globalCbs).every(cb => cb.checked);
+            }
+
+            updateAllChartsFromGlobal();
+        }
+
+        function resetGlobalFilters() {
+            const allCb = document.querySelector('#global-model-dropdown-menu .select-all');
+            let needsUpdate = false;
+
+            if (allCb && !allCb.checked) {
+                allCb.checked = true;
+                document.querySelectorAll('#global-model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                needsUpdate = true;
+            }
+
+            const tps = document.getElementById('tps-filter');
+            if (tps && tps.value !== 'ALL') {
+                tps.value = 'ALL';
+                needsUpdate = true;
+            }
+
+            const att = document.getElementById('att-filter');
+            if (att && att.value !== 'ALL') {
+                att.value = 'ALL';
+                needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+                updateAllChartsFromGlobal();
+            }
+        }
+
+        function resetAccuracyFilters() {
+            const allCb = document.querySelector('#accuracy-model-dropdown-menu .select-all');
+            if (allCb && !allCb.checked) {
+                allCb.checked = true;
+                document.querySelectorAll('#accuracy-model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                renderChart();
+            }
+        }
+
+        function resetErrorsFilters() {
+            let changed = false;
+            const modelAllCb = document.querySelector('#model-dropdown-menu .select-all');
+            if (modelAllCb && !modelAllCb.checked) {
+                modelAllCb.checked = true;
+                document.querySelectorAll('#model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                changed = true;
+            }
+            const classAllCb = document.querySelector('#class-dropdown-menu .select-all');
+            if (classAllCb && !classAllCb.checked) {
+                classAllCb.checked = true;
+                document.querySelectorAll('#class-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                changed = true;
+            }
+            if (changed) {
+                renderErrorsChart();
+            }
+        }
+
+        let datasetCsvData = [];
+        let datasetChartInstance = null;
+        let referenceDatasetIndexCsv = null;
+
+        let vehicleTypeChartInstance = null;
+        let referenceVehicleTypeIndexCsv = null;
+
+        function resetCerFilters() {
+            const allCb = document.querySelector('#cer-model-dropdown-menu .select-all');
+            if (allCb && !allCb.checked) {
+                allCb.checked = true;
+                document.querySelectorAll('#cer-model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                renderCerChart();
+            }
+        }
+
+        function resetDatasetFilters() {
+            const allCb = document.querySelector('#dataset-model-dropdown-menu .select-all');
+            if (allCb && !allCb.checked) {
+                allCb.checked = true;
+                document.querySelectorAll('#dataset-model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                renderDatasetChart();
+            }
+        }
+
+        function resetVehicleTypeFilters() {
+            const allCb = document.querySelector('#vehicle-type-model-dropdown-menu .select-all');
+            if (allCb && !allCb.checked) {
+                allCb.checked = true;
+                document.querySelectorAll('#vehicle-type-model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
+                renderVehicleTypeChart();
+            }
+        }
+
+        async function handleCSVFilesArray(files) {
+            if (!files || files.length === 0) return;
+
+            datasetCsvData = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const text = await file.text();
+
+                const match = file.name.match(/predictions_.*_([a-f0-9]{8})\.csv/i);
+                let modelLabel = file.name;
+
+                if (match) {
+                    const runIdSnippet = match[1].toLowerCase();
+                    let found = false;
+                    if (metricsData && metricsData.models) {
+                        const matchedModel = metricsData.models.find(m => m.run_id && m.run_id.toLowerCase().startsWith(runIdSnippet));
+                        if (matchedModel) {
+                            modelLabel = matchedModel.label;
+                            found = true;
+                        }
+                    }
+                    if (!found) {
+                        const nameMatch = file.name.match(/predictions_(.*)_[a-f0-9]{8}\.csv/i);
+                        if (nameMatch) {
+                            modelLabel = nameMatch[1].toUpperCase().split('_').join(' ');
+                        }
+                    }
+                } else {
+                    const nameMatch = file.name.match(/predictions_(.*)\.csv/i);
+                    if (nameMatch) {
+                        modelLabel = nameMatch[1].toUpperCase().split('_').join(' ');
+                    }
+                }
+
+                const lines = text.split('\n');
+                if (lines.length < 2) continue;
+
+                const header = lines[0].trim().split(',');
+                const imgIdx = header.indexOf('img');
+                const correctIdx = header.indexOf('correct');
+                const vehicleIdx = header.indexOf('vehicle_type');
+
+                if (imgIdx === -1 || correctIdx === -1) continue;
+
+                let ufprTotal = 0, ufprCorrect = 0;
+                let rodoTotal = 0, rodoCorrect = 0;
+                let carTotal = 0, carCorrect = 0;
+                let motorcycleTotal = 0, motorcycleCorrect = 0;
+
+                for (let j = 1; j < lines.length; j++) {
+                    const row = lines[j].trim();
+                    if (!row) continue;
+                    const cols = row.split(',');
+                    const img = cols[imgIdx];
+                    const isCorrect = cols[correctIdx].toLowerCase() === 'true';
+
+                    if (img.startsWith('track')) {
+                        ufprTotal++;
+                        if (isCorrect) ufprCorrect++;
+                    } else if (img.startsWith('img_')) {
+                        rodoTotal++;
+                        if (isCorrect) rodoCorrect++;
+                    }
+
+                    if (vehicleIdx !== -1) {
+                        const vType = cols[vehicleIdx].toLowerCase();
+                        if (vType === 'car') {
+                            carTotal++;
+                            if (isCorrect) carCorrect++;
+                        } else if (vType === 'motorcycle') {
+                            motorcycleTotal++;
+                            if (isCorrect) motorcycleCorrect++;
+                        }
+                    }
+                }
+
+                datasetCsvData.push({
+                    label: modelLabel,
+                    ufprAcc: ufprTotal > 0 ? (ufprCorrect / ufprTotal) * 100 : 0,
+                    rodoAcc: rodoTotal > 0 ? (rodoCorrect / rodoTotal) * 100 : 0,
+                    carAcc: carTotal > 0 ? (carCorrect / carTotal) * 100 : 0,
+                    motorcycleAcc: motorcycleTotal > 0 ? (motorcycleCorrect / motorcycleTotal) * 100 : 0
+                });
+            }
+
+            // Sort to match metricsData if possible
+            if (metricsData && metricsData.models) {
+                datasetCsvData.sort((a, b) => {
+                    const idxA = metricsData.models.findIndex(m => m.label === a.label);
+                    const idxB = metricsData.models.findIndex(m => m.label === b.label);
+                    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+                });
+            }
+
+            renderDatasetSelector();
+            renderVehicleTypeSelector();
+
+            document.getElementById('dataset-placeholder').style.display = 'none';
+            document.getElementById('dataset-filters').style.display = 'flex';
+            document.getElementById('dataset-chart-container').style.display = 'block';
+
+            document.getElementById('vehicle-type-placeholder').style.display = 'none';
+            document.getElementById('vehicle-type-filters').style.display = 'flex';
+            document.getElementById('vehicle-type-chart-container').style.display = 'block';
+
+            renderDatasetChart();
+            renderVehicleTypeChart();
+        }
+
+        function renderDatasetSelector() {
+            const container = document.getElementById('dataset-model-dropdown-menu');
+            container.innerHTML = '';
+
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid var(--border)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                renderDatasetChart();
+            };
+
+            datasetCsvData.forEach((m, index) => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = index;
+                cb.checked = true;
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    renderDatasetChart();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(m.label));
+                container.appendChild(label);
+            });
+        }
+
+        function renderDatasetChart() {
+            const ctx = document.getElementById('datasetChart').getContext('2d');
+            if (datasetChartInstance) {
+                datasetChartInstance.destroy();
+                referenceDatasetIndexCsv = null;
+            }
+
+            const modelCheckboxes = document.querySelectorAll('#dataset-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            const selectedModelIndices = Array.from(modelCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => parseInt(cb.value));
+
+            if (selectedModelIndices.length === 0) {
+                return;
+            }
+
+            const datasets = selectedModelIndices.map((idx, i) => {
+                const d = datasetCsvData[idx];
+                let globalIdx = idx;
+                if (metricsData && metricsData.models) {
+                    const foundIdx = metricsData.models.findIndex(m => m.label === d.label);
+                    if (foundIdx !== -1) globalIdx = foundIdx;
+                }
+                return {
+                    label: d.label,
+                    data: [d.ufprAcc, d.rodoAcc],
+                    backgroundColor: chartColors[globalIdx % chartColors.length],
+                    borderRadius: 4
+                };
+            });
+
+            const theme = getThemeColors();
+
+            const simpleAccuracyLabelPlugin = {
+                id: 'simpleAccuracyLabelPlugin',
+                afterDatasetsDraw(chart, args, pluginOptions) {
+                    const { ctx } = chart;
+                    const numCategories = 2; // UFPR and RodoSol
+
+                    ctx.save();
+                    ctx.font = '600 13px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+
+                    for (let c = 0; c < numCategories; c++) {
+                        chart.data.datasets.forEach((dataset, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            if (!meta || meta.hidden) return;
+
+                            const bar = meta.data[c];
+                            if (!bar) return;
+
+                            const val = parseFloat(dataset.data[c]);
+                            const text = val.toFixed(2) + '%';
+
+                            ctx.fillStyle = theme.tickColor;
+                            ctx.fillText(text, bar.x, bar.y - 6);
+                        });
+                    }
+                    ctx.restore();
+                }
+            };
+
+            datasetChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['UFPR-ALPR', 'RodoSol-ALPR'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 25 }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            onClick: () => { },
+                            position: 'bottom',
+                            labels: {
+                                color: theme.legendColor,
+                                font: { family: 'Inter', size: 12, weight: '500' },
+                                padding: 12,
+                                boxWidth: 12,
+                                generateLabels: (chart) => {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                    original.forEach(label => {
+                                        if (referenceDatasetIndexCsv !== null && label.datasetIndex !== referenceDatasetIndexCsv) {
+                                            label.fontColor = theme.isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.3)';
+                                        } else {
+                                            label.fontColor = theme.legendColor;
+                                        }
+                                    });
+                                    return original;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: theme.tooltipBg,
+                            titleFont: { family: 'Inter', size: 14 },
+                            bodyFont: { family: 'Inter', size: 13 },
+                            titleColor: theme.tooltipTitleColor,
+                            bodyColor: theme.tooltipBodyColor,
+                            padding: 12,
+                            borderColor: theme.tooltipBorder,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.raw.toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    },
+                    onClick: (e, elements, chart) => {
+                        const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
+                        if (nearestElements && nearestElements.length > 0) {
+                            referenceDatasetIndexCsv = nearestElements[0].datasetIndex;
+                            chart.update();
+                        } else {
+                            referenceDatasetIndexCsv = null;
+                            chart.update();
+                        }
+                    },
+                    onHover: (e, elements, chart) => {
+                        const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
+                        e.native.target.style.cursor = nearestElements && nearestElements.length > 0 ? 'pointer' : 'default';
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: theme.gridColor },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter' } },
+                            title: { display: true, text: 'Accuracy (%)', color: theme.tickColor },
+                            grace: '10%'
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter', size: 14, weight: '600' } }
+                        }
+                    }
+                },
+                plugins: [simpleAccuracyLabelPlugin]
+            });
+        }
+
+        function renderVehicleTypeSelector() {
+            const container = document.getElementById('vehicle-type-model-dropdown-menu');
+            container.innerHTML = '';
+
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid var(--border)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                renderVehicleTypeChart();
+            };
+
+            datasetCsvData.forEach((m, index) => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = index;
+                cb.checked = true;
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    renderVehicleTypeChart();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(m.label));
+                container.appendChild(label);
+            });
+        }
+
+        function renderVehicleTypeChart() {
+            const ctx = document.getElementById('vehicleTypeChart').getContext('2d');
+            if (vehicleTypeChartInstance) {
+                vehicleTypeChartInstance.destroy();
+                referenceVehicleTypeIndexCsv = null;
+            }
+
+            const modelCheckboxes = document.querySelectorAll('#vehicle-type-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+            const selectedModelIndices = Array.from(modelCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => parseInt(cb.value));
+
+            if (selectedModelIndices.length === 0) {
+                return;
+            }
+
+            const datasets = selectedModelIndices.map((idx, i) => {
+                const d = datasetCsvData[idx];
+                let globalIdx = idx;
+                if (metricsData && metricsData.models) {
+                    const foundIdx = metricsData.models.findIndex(m => m.label === d.label);
+                    if (foundIdx !== -1) globalIdx = foundIdx;
+                }
+                return {
+                    label: d.label,
+                    data: [d.carAcc, d.motorcycleAcc],
+                    backgroundColor: chartColors[globalIdx % chartColors.length],
+                    borderRadius: 4
+                };
+            });
+
+            const theme = getThemeColors();
+
+            const deltaVehicleTypePlugin = {
+                id: 'deltaVehicleTypePlugin',
+                afterDatasetsDraw(chart, args, pluginOptions) {
+                    const { ctx } = chart;
+                    const numCategories = 2; // Car and Motorcycle
+
+                    ctx.save();
+                    ctx.font = '600 13px Inter';
+                    ctx.textAlign = 'center';
+
+                    for (let c = 0; c < numCategories; c++) {
+                        let refVal;
+                        if (referenceVehicleTypeIndexCsv !== null && !chart.getDatasetMeta(referenceVehicleTypeIndexCsv).hidden) {
+                            refVal = parseFloat(chart.data.datasets[referenceVehicleTypeIndexCsv].data[c]);
+                        } else {
+                            refVal = -Infinity;
+                            chart.data.datasets.forEach((ds, i) => {
+                                const meta = chart.getDatasetMeta(i);
+                                if (!meta.hidden) {
+                                    const val = parseFloat(ds.data[c]);
+                                    if (val > refVal) refVal = val;
+                                }
+                            });
+                        }
+
+                        chart.data.datasets.forEach((dataset, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            if (!meta || meta.hidden) return;
+
+                            const bar = meta.data[c];
+                            if (!bar) return;
+
+                            const val = parseFloat(dataset.data[c]);
+                            let diff = val - refVal;
+                            diff = Math.round(diff * 100) / 100;
+
+                            // 1. Acurácia Absoluta (Acima da barra)
+                            ctx.textBaseline = 'bottom';
+                            ctx.font = '600 13px Inter';
+                            ctx.fillStyle = theme.tickColor;
+                            ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
+
+                            // 2. Diferença Delta (Dentro da barra)
+                            let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + '%';
+                            if (diff > 0) diffText = '+' + diffText;
+
+                            ctx.textBaseline = 'top';
+                            ctx.font = '700 12px Inter';
+                            ctx.fillStyle = '#ffffff';
+
+                            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                            ctx.shadowBlur = 3;
+                            ctx.shadowOffsetX = 0;
+                            ctx.shadowOffsetY = 1;
+
+                            ctx.fillText(diffText, bar.x, bar.y + 8);
+
+                            ctx.shadowColor = 'transparent';
+                            ctx.shadowBlur = 0;
+                        });
+                    }
+                    ctx.restore();
+                }
+            };
+
+            vehicleTypeChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Car', 'Motorcycle'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 25 }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            onClick: () => { },
+                            position: 'bottom',
+                            labels: {
+                                color: theme.legendColor,
+                                font: { family: 'Inter', size: 12, weight: '500' },
+                                padding: 12,
+                                boxWidth: 12,
+                                generateLabels: (chart) => {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                    original.forEach(label => {
+                                        if (referenceVehicleTypeIndexCsv !== null && label.datasetIndex !== referenceVehicleTypeIndexCsv) {
+                                            label.fontColor = theme.isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.3)';
+                                        } else {
+                                            label.fontColor = theme.legendColor;
+                                        }
+                                    });
+                                    return original;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: theme.tooltipBg,
+                            titleFont: { family: 'Inter', size: 14 },
+                            bodyFont: { family: 'Inter', size: 13 },
+                            titleColor: theme.tooltipTitleColor,
+                            bodyColor: theme.tooltipBodyColor,
+                            padding: 12,
+                            borderColor: theme.tooltipBorder,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.raw.toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    },
+                    onClick: (e, elements, chart) => {
+                        const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
+                        if (nearestElements && nearestElements.length > 0) {
+                            referenceVehicleTypeIndexCsv = nearestElements[0].datasetIndex;
+                            chart.update();
+                        } else {
+                            referenceVehicleTypeIndexCsv = null;
+                            chart.update();
+                        }
+                    },
+                    onHover: (e, elements, chart) => {
+                        const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
+                        e.native.target.style.cursor = nearestElements && nearestElements.length > 0 ? 'pointer' : 'default';
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: theme.gridColor },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter' } },
+                            title: { display: true, text: 'Accuracy (%)', color: theme.tickColor },
+                            grace: '10%'
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter', size: 14, weight: '600' } }
+                        }
+                    }
+                },
+                plugins: [deltaVehicleTypePlugin]
+            });
+        }
+
+        let metricsData = null;
+        let chartInstance = null;
+        let cerChartInstance = null;
+        let errorsChartInstance = null;
+        let referenceDatasetIndex = null;
+        let referenceDatasetIndexCer = null;
+        let referenceDatasetIndexErrors = null;
+        let allClassesList = [];
+
+        // Rich colors global
+        const chartColors = [
+            'rgba(56, 189, 248, 0.85)', // Sky
+            'rgba(129, 140, 248, 0.85)', // Indigo
+            'rgba(167, 139, 250, 0.85)', // Violet
+            'rgba(244, 114, 182, 0.85)', // Pink
+            'rgba(251, 146, 60, 0.85)',  // Orange
+            'rgba(52, 211, 153, 0.85)',  // Emerald
+            'rgba(250, 204, 21, 0.85)',  // Yellow
+            'rgba(156, 163, 175, 0.85)'  // Gray
+        ];
+
+        function toggleDropdown(id) {
+            document.getElementById(id).classList.toggle("show");
+        }
+
+        // Close dropdowns when clicking outside
+        window.onclick = function (event) {
+            if (!event.target.matches('.dropdown-btn') && !event.target.closest('.dropdown-menu')) {
+                const dropdowns = document.getElementsByClassName("dropdown-menu");
+                for (let i = 0; i < dropdowns.length; i++) {
+                    if (dropdowns[i].classList.contains('show')) {
+                        dropdowns[i].classList.remove('show');
+                    }
+                }
+            }
+        }
+
+        // Show folder picker immediately
+        function loadData() {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('file-picker-container').style.display = 'flex';
+        }
+
+        // Handle manual folder selection
+        async function handleFolder(event) {
+            const files = Array.from(event.target.files);
+            if (!files || files.length === 0) return;
+
+            const jsonFile = files.find(f => f.name.endsWith('.json'));
+            if (jsonFile) {
+                try {
+                    const text = await jsonFile.text();
+                    metricsData = JSON.parse(text);
+                    document.getElementById('file-picker-container').style.display = 'none';
+                    initApp();
+                } catch (err) {
+                    alert("Invalid JSON file. Please try again.");
+                    return;
+                }
+            }
+
+            const csvFiles = files.filter(f => f.name.endsWith('.csv'));
+            if (csvFiles.length > 0) {
+                await handleCSVFilesArray(csvFiles);
+            }
+        }
+
+        function initApp() {
+            // Ordena os modelos por acurácia (do maior para o menor)
+            if (metricsData && metricsData.models) {
+                metricsData.models.sort((a, b) => b.plate_accuracy - a.plate_accuracy);
+            }
+
+            // Extract all unique classes
+            const allClasses = new Set();
+            if (metricsData && metricsData.models) {
+                metricsData.models.forEach(m => {
+                    if (m.class_errors) {
+                        Object.keys(m.class_errors).forEach(cls => allClasses.add(cls));
+                    }
+                });
+            }
+            allClassesList = Array.from(allClasses).sort();
+
+            document.getElementById('app').style.display = 'block';
+            document.getElementById('loader').style.display = 'none';
+            renderGlobalModelSelector();
+            renderAccuracyModelSelector();
+            renderCerModelSelector();
+            renderChart();
+            renderCerChart();
+            renderModelSelector();
+            renderClassSelector();
+            renderErrorsChart();
+        }
+
+        function renderChart() {
+            if (chartInstance) {
+                chartInstance.destroy();
+                referenceDatasetIndex = null;
+            }
+
+            const ctx = document.getElementById('accuracyChart').getContext('2d');
+
+            const accuracyModelCheckboxes = Array.from(document.querySelectorAll('#accuracy-model-dropdown-menu input[type="checkbox"]:not(.select-all):checked'));
+            const selectedIndices = accuracyModelCheckboxes.map(cb => parseInt(cb.value));
+
+            // To have legend on the side per model, we use a single X-axis label and multiple datasets (one per model)
+            const datasets = selectedIndices.map(idx => {
+                const m = metricsData.models[idx];
+                const color = chartColors[idx % chartColors.length];
+                return {
+                    label: m.label,
+                    data: [(m.plate_accuracy * 100).toFixed(2)],
+                    backgroundColor: color,
+                    borderColor: color.replace('0.85', '1'),
+                    borderWidth: 1,
+                    borderRadius: 6
+                };
+            });
+
+            const theme = getThemeColors();
+
+            const deltaPlugin = {
+                id: 'deltaPlugin',
+                afterDatasetsDraw(chart, args, pluginOptions) {
+                    const { ctx } = chart;
+
+                    let refVal;
+                    if (referenceDatasetIndex !== null && !chart.getDatasetMeta(referenceDatasetIndex).hidden) {
+                        refVal = parseFloat(chart.data.datasets[referenceDatasetIndex].data[0]);
+                    } else {
+                        refVal = -Infinity;
+                        chart.data.datasets.forEach((ds, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            if (!meta.hidden) {
+                                const val = parseFloat(ds.data[0]);
+                                if (val > refVal) refVal = val;
+                            }
+                        });
+                    }
+
+                    ctx.save();
+                    ctx.font = '600 13px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+
+                    chart.data.datasets.forEach((dataset, i) => {
+                        const meta = chart.getDatasetMeta(i);
+                        if (meta.hidden) return;
+
+                        const bar = meta.data[0];
+                        const val = parseFloat(dataset.data[0]);
+                        let diff = val - refVal;
+                        diff = Math.round(diff * 100) / 100;
+
+                        // 1. Acurácia Absoluta (Acima da barra)
+                        ctx.font = '600 13px Inter';
+                        ctx.fillStyle = theme.tickColor;
+                        ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
+
+                        // 2. Diferença Delta (Abaixo do topo da barra / dentro da barra)
+                        let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + '%';
+                        if (diff > 0) diffText = '+' + diffText;
+
+                        ctx.textBaseline = 'top';
+                        ctx.font = '700 12px Inter';
+                        ctx.fillStyle = '#ffffff';
+
+                        // Sombra leve para garantir leitura em qualquer cor de barra
+                        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                        ctx.shadowBlur = 3;
+                        ctx.shadowOffsetX = 0;
+                        ctx.shadowOffsetY = 1;
+
+                        ctx.fillText(diffText, bar.x, bar.y + 8);
+
+                        // Reseta a sombra e baseline para o próximo desenho
+                        ctx.shadowColor = 'transparent';
+                        ctx.shadowBlur = 0;
+                        ctx.textBaseline = 'bottom';
+                    });
+                    ctx.restore();
+                }
+            };
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [''],
+                    datasets: datasets
+                },
+                plugins: [deltaPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 25 }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            onClick: () => { }, // Desabilita o clique para não ocultar as barras
+                            position: 'bottom',
+                            labels: {
+                                color: theme.legendColor,
+                                font: { family: 'Inter', size: 12, weight: '500' },
+                                padding: 12,
+                                boxWidth: 12,
+                                generateLabels: (chart) => {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                    original.forEach(label => {
+                                        if (referenceDatasetIndex !== null && label.datasetIndex !== referenceDatasetIndex) {
+                                            label.fontColor = theme.isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.3)';
+                                        } else {
+                                            label.fontColor = theme.legendColor;
+                                        }
+                                    });
+                                    return original;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: theme.tooltipBg,
+                            titleFont: { family: 'Inter', size: 14 },
+                            bodyFont: { family: 'Inter', size: 13 },
+                            titleColor: theme.tooltipTitleColor,
+                            bodyColor: theme.tooltipBodyColor,
+                            padding: 12,
+                            borderColor: theme.tooltipBorder,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements, chart) => {
+                        if (elements.length > 0) {
+                            referenceDatasetIndex = elements[0].datasetIndex;
+                            chart.update();
+                        } else {
+                            referenceDatasetIndex = null;
+                            chart.update();
+                        }
+                    },
+                    onHover: (event, elements, chart) => {
+                        event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: theme.gridColor },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter', size: 14, weight: '600' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderAccuracyModelSelector() {
+            const container = document.getElementById('accuracy-model-dropdown-menu');
+            container.innerHTML = '';
+
+            // "Todos" checkbox
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                renderChart();
+            };
+
+            metricsData.models.forEach((m, index) => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = index;
+                cb.checked = true;
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    renderChart();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(m.label));
+                container.appendChild(label);
+            });
+        }
+
+        function renderModelSelector() {
+            const container = document.getElementById('model-dropdown-menu');
+            container.innerHTML = '';
+
+            // "Todos" checkbox
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                renderErrorsChart();
+            };
+
+            metricsData.models.forEach((m, index) => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = index;
+                cb.checked = true; // All selected by default
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    renderErrorsChart();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(m.label));
+                container.appendChild(label);
+            });
+        }
+
+        function renderClassSelector() {
+            const container = document.getElementById('class-dropdown-menu');
+            container.innerHTML = '';
+
+            // "Todos" checkbox
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                renderErrorsChart();
+            };
+
+            allClassesList.forEach(cls => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = cls;
+                cb.checked = true; // All selected by default
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    renderErrorsChart();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(cls));
+                container.appendChild(label);
+            });
+        }
+
+        function renderErrorsChart() {
+            const modelCheckboxes = Array.from(document.querySelectorAll('#model-dropdown-menu input[type="checkbox"]:not(.select-all):checked'));
+            const selectedIndices = modelCheckboxes.map(cb => parseInt(cb.value));
+
+            const classCheckboxes = Array.from(document.querySelectorAll('#class-dropdown-menu input[type="checkbox"]:not(.select-all):checked'));
+            const selectedClasses = classCheckboxes.map(cb => cb.value);
+
+            // Dynamically resize wrapper width so bars stay thin and scrollable
+            const wrapper = document.getElementById('errors-chart-wrapper');
+            // Allow ~16px width per bar group per model + margins
+            const calculatedWidth = selectedClasses.length * Math.max(1, selectedIndices.length) * 16 + 100;
+            // Use max(100%, ...) so it fills the available space when few classes are selected
+            wrapper.style.width = `max(100%, ${calculatedWidth}px)`;
+
+            const ctx = document.getElementById('errorsChart').getContext('2d');
+
+            if (errorsChartInstance) {
+                errorsChartInstance.destroy();
+                referenceDatasetIndexErrors = null;
+            }
+
+            const datasets = selectedIndices.map(idx => {
+                const m = metricsData.models[idx];
+                const color = chartColors[idx % chartColors.length];
+
+                const data = selectedClasses.map(cls => {
+                    return m.class_errors[cls] || 0;
+                });
+
+                return {
+                    label: m.label,
+                    data: data,
+                    backgroundColor: color,
+                    borderColor: color.replace('0.85', '1'),
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    barPercentage: 0.95,
+                    categoryPercentage: 0.7
+                };
+            });
+
+            const theme = getThemeColors();
+
+            const deltaErrorsPlugin = {
+                id: 'deltaErrorsPlugin',
+                afterDatasetsDraw(chart, args, pluginOptions) {
+                    const { ctx } = chart;
+                    const numClasses = chart.data.labels.length;
+
+                    ctx.save();
+                    ctx.font = '600 12px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+
+                    for (let c = 0; c < numClasses; c++) {
+                        let refVal = Infinity;
+
+                        if (referenceDatasetIndexErrors !== null) {
+                            const meta = chart.getDatasetMeta(referenceDatasetIndexErrors);
+                            if (meta && !meta.hidden) {
+                                refVal = parseFloat(chart.data.datasets[referenceDatasetIndexErrors].data[c]);
+                            }
+                        }
+
+                        if (refVal === Infinity) {
+                            chart.data.datasets.forEach((ds, i) => {
+                                const meta = chart.getDatasetMeta(i);
+                                if (meta && !meta.hidden) {
+                                    const val = parseFloat(ds.data[c]);
+                                    if (val < refVal) refVal = val;
+                                }
+                            });
+                        }
+
+                        chart.data.datasets.forEach((dataset, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            if (!meta || meta.hidden) return;
+
+                            const bar = meta.data[c];
+                            if (!bar) return; // safety
+
+                            const val = parseFloat(dataset.data[c]);
+                            let diff = val - refVal;
+
+                            diff = Math.round(diff * 100) / 100;
+
+                            let text = diff === 0 ? '0' : diff;
+                            if (diff > 0) text = '+' + text;
+
+                            if (diff === 0) {
+                                ctx.fillStyle = theme.refBarColor; // Reference
+                            } else if (diff < 0) {
+                                ctx.fillStyle = '#34d399'; // Negative (fewer errors = good = green)
+                            } else {
+                                ctx.fillStyle = '#f87171'; // Positive (more errors = bad = red)
+                            }
+
+                            ctx.fillText(text, bar.x, bar.y - 6);
+                        });
+                    }
+                    ctx.restore();
+                }
+            };
+
+            errorsChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: selectedClasses,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 25 }
+                    },
+                    onClick: (e, elements, chart) => {
+                        const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
+                        if (nearestElements && nearestElements.length > 0) {
+                            const datasetIndex = nearestElements[0].datasetIndex;
+                            referenceDatasetIndexErrors = datasetIndex;
+                            chart.update();
+                        } else {
+                            referenceDatasetIndexErrors = null;
+                            chart.update();
+                        }
+                    },
+                    onHover: (e, elements, chart) => {
+                        const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
+                        e.native.target.style.cursor = nearestElements && nearestElements.length > 0 ? 'pointer' : 'default';
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            onClick: () => { }, // Desabilita o clique para não ocultar as barras
+                            position: 'bottom',
+                            labels: {
+                                color: theme.legendColor,
+                                font: { family: 'Inter', size: 12, weight: '500' },
+                                padding: 12,
+                                boxWidth: 12,
+                                generateLabels: (chart) => {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                    original.forEach(label => {
+                                        if (referenceDatasetIndexErrors !== null && label.datasetIndex !== referenceDatasetIndexErrors) {
+                                            label.fontColor = theme.isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.3)';
+                                        } else {
+                                            label.fontColor = theme.legendColor;
+                                        }
+                                    });
+                                    return original;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: theme.tooltipBg,
+                            titleFont: { family: 'Inter', size: 14 },
+                            bodyFont: { family: 'Inter', size: 13 },
+                            titleColor: theme.tooltipTitleColor,
+                            bodyColor: theme.tooltipBodyColor,
+                            padding: 12,
+                            borderColor: theme.tooltipBorder,
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: theme.gridColor },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter' } },
+                            title: { display: true, text: 'Quantidade de Erros', color: theme.tickColor },
+                            grace: '10%' // Add some top spacing for text labels
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter', size: 13, weight: '500' } }
+                        }
+                    }
+                },
+                plugins: [deltaErrorsPlugin]
+            });
+        }
+
+        function renderCerModelSelector() {
+            const container = document.getElementById('cer-model-dropdown-menu');
+            container.innerHTML = '';
+
+            const allLabel = document.createElement('label');
+            allLabel.className = 'checkbox-label';
+            allLabel.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            allLabel.style.marginBottom = '4px';
+            allLabel.style.paddingBottom = '8px';
+            allLabel.style.fontWeight = '600';
+
+            const allCb = document.createElement('input');
+            allCb.type = 'checkbox';
+            allCb.className = 'select-all';
+            allCb.checked = true;
+
+            allLabel.appendChild(allCb);
+            allLabel.appendChild(document.createTextNode('Select All'));
+            container.appendChild(allLabel);
+
+            const individualCbs = [];
+
+            allCb.onchange = (e) => {
+                const isChecked = e.target.checked;
+                individualCbs.forEach(cb => cb.checked = isChecked);
+                renderCerChart();
+            };
+
+            metricsData.models.forEach((m, index) => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-label';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = index;
+                cb.checked = true;
+
+                cb.onchange = () => {
+                    allCb.checked = individualCbs.every(c => c.checked);
+                    renderCerChart();
+                };
+
+                individualCbs.push(cb);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(m.label));
+                container.appendChild(label);
+            });
+        }
+
+        function renderCerChart() {
+            if (cerChartInstance) {
+                cerChartInstance.destroy();
+                referenceDatasetIndexCer = null;
+            }
+
+            const ctx = document.getElementById('cerChart').getContext('2d');
+
+            const cerModelCheckboxes = Array.from(document.querySelectorAll('#cer-model-dropdown-menu input[type="checkbox"]:not(.select-all):checked'));
+            const selectedIndices = cerModelCheckboxes.map(cb => parseInt(cb.value));
+
+            const datasets = selectedIndices.map(idx => {
+                const m = metricsData.models[idx];
+                const color = chartColors[idx % chartColors.length];
+                return {
+                    label: m.label,
+                    data: [(m.cer * 100).toFixed(2)],
+                    backgroundColor: color,
+                    borderColor: color.replace('0.85', '1'),
+                    borderWidth: 1,
+                    borderRadius: 6
+                };
+            });
+
+            const theme = getThemeColors();
+
+            const deltaCerPlugin = {
+                id: 'deltaCerPlugin',
+                afterDatasetsDraw(chart, args, pluginOptions) {
+                    const { ctx } = chart;
+
+                    let refVal;
+                    if (referenceDatasetIndexCer !== null && !chart.getDatasetMeta(referenceDatasetIndexCer).hidden) {
+                        refVal = parseFloat(chart.data.datasets[referenceDatasetIndexCer].data[0]);
+                    } else {
+                        refVal = Infinity;
+                        chart.data.datasets.forEach((ds, i) => {
+                            const meta = chart.getDatasetMeta(i);
+                            if (!meta.hidden) {
+                                const val = parseFloat(ds.data[0]);
+                                if (val < refVal) refVal = val;
+                            }
+                        });
+                    }
+
+                    ctx.save();
+                    ctx.font = '600 13px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+
+                    chart.data.datasets.forEach((dataset, i) => {
+                        const meta = chart.getDatasetMeta(i);
+                        if (meta.hidden) return;
+
+                        const bar = meta.data[0];
+                        if (!bar) return;
+
+                        const val = parseFloat(dataset.data[0]);
+                        let diff = val - refVal;
+
+                        diff = Math.round(diff * 100) / 100;
+
+                        let text = diff === 0 ? '0' : diff.toFixed(2) + '%';
+                        if (diff > 0) text = '+' + text;
+
+                        if (diff === 0) {
+                            ctx.fillStyle = theme.refBarColor; // Reference
+                        } else if (diff < 0) {
+                            ctx.fillStyle = '#34d399'; // Negative (less CER = green)
+                        } else {
+                            ctx.fillStyle = '#f87171'; // Positive (more CER = red)
+                        }
+
+                        ctx.fillText(text, bar.x, bar.y - 6);
+                    });
+                    ctx.restore();
+                }
+            };
+
+            cerChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [''],
+                    datasets: datasets
+                },
+                plugins: [deltaCerPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 25 }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            onClick: () => { },
+                            position: 'bottom',
+                            labels: {
+                                color: theme.legendColor,
+                                font: { family: 'Inter', size: 12, weight: '500' },
+                                padding: 12,
+                                boxWidth: 12,
+                                generateLabels: (chart) => {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                    original.forEach(label => {
+                                        if (referenceDatasetIndexCer !== null && label.datasetIndex !== referenceDatasetIndexCer) {
+                                            label.fontColor = theme.isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.3)';
+                                        } else {
+                                            label.fontColor = theme.legendColor;
+                                        }
+                                    });
+                                    return original;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: theme.tooltipBg,
+                            titleFont: { family: 'Inter', size: 14 },
+                            bodyFont: { family: 'Inter', size: 13 },
+                            titleColor: theme.tooltipTitleColor,
+                            bodyColor: theme.tooltipBodyColor,
+                            padding: 12,
+                            borderColor: theme.tooltipBorder,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.raw + '%';
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements, chart) => {
+                        if (elements.length > 0) {
+                            referenceDatasetIndexCer = elements[0].datasetIndex;
+                            chart.update();
+                        } else {
+                            referenceDatasetIndexCer = null;
+                            chart.update();
+                        }
+                    },
+                    onHover: (event, elements, chart) => {
+                        event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: theme.gridColor },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter' } },
+                            title: { display: true, text: 'CER (%)', color: theme.tickColor },
+                            grace: '10%'
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: theme.tickColor, font: { family: 'Inter', size: 14, weight: '600' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+
+</html>

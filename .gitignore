@@ -206,3 +206,5 @@ $RECYCLE.BIN/
 *.lnk
 dataset/
 outputs_*/
+outputs_blstm/
+outputs_trasf/
