@@ -326,6 +326,31 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* Export button group */
+        .export-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .export-group .dropdown-btn {
+            min-width: auto;
+            padding: 0.4rem 0.85rem;
+            font-size: 0.82rem;
+            border-radius: 8px;
+            margin: 0;
+        }
+
+        .export-group .btn-svg {
+            border-color: rgba(167, 139, 250, 0.5);
+            color: rgba(167, 139, 250, 0.9);
+        }
+
+        .export-group .btn-svg:hover {
+            border-color: rgba(167, 139, 250, 0.9);
+            background: rgba(167, 139, 250, 0.1);
+        }
     </style>
 </head>
 
@@ -377,22 +402,6 @@
                     </button>
                     <div id="global-model-dropdown-menu" class="dropdown-menu"></div>
                 </div>
-                <div class="dropdown-container" style="margin-bottom: 0;">
-                    <select id="tps-filter" onchange="applySemanticFilters()" class="dropdown-btn"
-                        style="border-color: var(--accent); appearance: auto; background-color: var(--card-bg); color: var(--text-main); font-weight: 500; min-width: 120px;">
-                        <option value="ALL">TPS: All</option>
-                        <option value="SIM">TPS: Yes</option>
-                        <option value="NAO">TPS: No</option>
-                    </select>
-                </div>
-                <div class="dropdown-container" style="margin-bottom: 0; margin-right: 1rem;">
-                    <select id="att-filter" onchange="applySemanticFilters()" class="dropdown-btn"
-                        style="border-color: var(--accent); appearance: auto; background-color: var(--card-bg); color: var(--text-main); font-weight: 500; min-width: 140px;">
-                        <option value="ALL">Attention: All</option>
-                        <option value="1D">Attention: 1D</option>
-                        <option value="2D">Attention: 2D</option>
-                    </select>
-                </div>
                 <button class="dropdown-btn"
                     style="min-width: auto; padding: 10px 16px; margin-bottom: 0; color: var(--text-muted);"
                     onclick="resetGlobalFilters()" title="Clear Global Filters">
@@ -404,9 +413,12 @@
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2 style="margin: 0;">Model Accuracy</h2>
-                    <button class="dropdown-btn" onclick="exportChart('accuracyChart', 'acuracia_modelos.png')"
-                        style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
-                        PNG</button>
+                    <div class="export-group">
+                        <button class="dropdown-btn"
+                            onclick="exportChart('accuracyChart', 'acuracia_modelos.png')">Export PNG</button>
+                        <button class="dropdown-btn btn-svg"
+                            onclick="exportChartSVG('accuracyChart', 'acuracia_modelos.svg')">Export SVG</button>
+                    </div>
                 </div>
 
                 <div style="display: flex; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
@@ -432,9 +444,12 @@
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2 style="margin: 0;">Errors per Class</h2>
-                    <button class="dropdown-btn" onclick="exportChart('errorsChart', 'erros_classe.png')"
-                        style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
-                        PNG</button>
+                    <div class="export-group">
+                        <button class="dropdown-btn" onclick="exportChart('errorsChart', 'erros_classe.png')">Export
+                            PNG</button>
+                        <button class="dropdown-btn btn-svg"
+                            onclick="exportChartSVG('errorsChart', 'erros_classe.svg')">Export SVG</button>
+                    </div>
                 </div>
 
                 <div style="display: flex; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
@@ -471,9 +486,12 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2 style="margin: 0;">Accuracy per Dataset</h2>
                     <div style="display: flex; gap: 1rem;">
-                        <button class="dropdown-btn" onclick="exportChart('datasetChart', 'acuracia_dataset.png')"
-                            style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
-                            PNG</button>
+                        <div class="export-group">
+                            <button class="dropdown-btn"
+                                onclick="exportChart('datasetChart', 'acuracia_dataset.png')">Export PNG</button>
+                            <button class="dropdown-btn btn-svg"
+                                onclick="exportChartSVG('datasetChart', 'acuracia_dataset.svg')">Export SVG</button>
+                        </div>
                     </div>
                 </div>
 
@@ -508,10 +526,14 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2 style="margin: 0;">Accuracy per Vehicle Type</h2>
                     <div style="display: flex; gap: 1rem;">
-                        <button class="dropdown-btn"
-                            onclick="exportChart('vehicleTypeChart', 'acuracia_vehicle_type.png')"
-                            style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
-                            PNG</button>
+                        <div class="export-group">
+                            <button class="dropdown-btn"
+                                onclick="exportChart('vehicleTypeChart', 'acuracia_vehicle_type.png')">Export
+                                PNG</button>
+                            <button class="dropdown-btn btn-svg"
+                                onclick="exportChartSVG('vehicleTypeChart', 'acuracia_vehicle_type.svg')">Export
+                                SVG</button>
+                        </div>
                     </div>
                 </div>
 
@@ -545,9 +567,12 @@
             <div class="card" id="cer-chart-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2 style="margin: 0;">Global Character Error Rate (CER)</h2>
-                    <button class="dropdown-btn" onclick="exportChart('cerChart', 'cer_global.png')"
-                        style="margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px;">Export
-                        PNG</button>
+                    <div class="export-group">
+                        <button class="dropdown-btn" onclick="exportChart('cerChart', 'cer_global.png')">Export
+                            PNG</button>
+                        <button class="dropdown-btn btn-svg"
+                            onclick="exportChartSVG('cerChart', 'cer_global.svg')">Export SVG</button>
+                    </div>
                 </div>
 
                 <div style="display: flex; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-start;">
@@ -583,7 +608,7 @@
                 gridColor: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)',
                 tickColor: isLight ? '#475569' : '#94a3b8',
                 legendColor: isLight ? '#0f172a' : '#f8fafc',
-                exportBg: isLight ? '#f1f5f9' : '#0f172a',
+                exportBg: isLight ? '#ffffff' : '#0f172a',
                 refBarColor: isLight ? '#475569' : '#94a3b8'
             };
         }
@@ -621,9 +646,421 @@
             link.href = tempCanvas.toDataURL('image/png');
             link.click();
         }
+        class SVGContext2D {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.canvas = { width, height };
+                this.elements = [];
+                this.currentPath = [];
+                this._stateStack = [];
+                this._measureCanvas = document.createElement('canvas');
+                this._measureCtx = this._measureCanvas.getContext('2d');
+                this._state = {
+                    matrix: [1, 0, 0, 1, 0, 0],
+                    fillStyle: '#000000',
+                    strokeStyle: '#000000',
+                    lineWidth: 1,
+                    lineCap: 'butt',
+                    lineJoin: 'miter',
+                    miterLimit: 10,
+                    lineDash: [],
+                    lineDashOffset: 0,
+                    font: '10px Inter, sans-serif',
+                    textAlign: 'start',
+                    textBaseline: 'alphabetic',
+                    globalAlpha: 1.0,
+                    globalCompositeOperation: 'source-over',
+                    shadowColor: 'transparent',
+                    shadowBlur: 0,
+                    shadowOffsetX: 0,
+                    shadowOffsetY: 0
+                };
+            }
+
+            save() {
+                this._stateStack.push(JSON.parse(JSON.stringify(this._state)));
+            }
+
+            restore() {
+                if (this._stateStack.length > 0) {
+                    this._state = this._stateStack.pop();
+                }
+            }
+
+            get fillStyle() { return this._state.fillStyle; }
+            set fillStyle(val) { this._state.fillStyle = val; }
+            get strokeStyle() { return this._state.strokeStyle; }
+            set strokeStyle(val) { this._state.strokeStyle = val; }
+            get lineWidth() { return this._state.lineWidth; }
+            set lineWidth(val) { this._state.lineWidth = val; }
+            get lineCap() { return this._state.lineCap; }
+            set lineCap(val) { this._state.lineCap = val; }
+            get lineJoin() { return this._state.lineJoin; }
+            set lineJoin(val) { this._state.lineJoin = val; }
+            get miterLimit() { return this._state.miterLimit; }
+            set miterLimit(val) { this._state.miterLimit = val; }
+            get lineDashOffset() { return this._state.lineDashOffset; }
+            set lineDashOffset(val) { this._state.lineDashOffset = val; }
+            get font() { return this._state.font; }
+            set font(val) { this._state.font = val; }
+            get textAlign() { return this._state.textAlign; }
+            set textAlign(val) { this._state.textAlign = val; }
+            get textBaseline() { return this._state.textBaseline; }
+            set textBaseline(val) { this._state.textBaseline = val; }
+            get globalAlpha() { return this._state.globalAlpha; }
+            set globalAlpha(val) { this._state.globalAlpha = val; }
+            get globalCompositeOperation() { return this._state.globalCompositeOperation; }
+            set globalCompositeOperation(val) { this._state.globalCompositeOperation = val; }
+            get shadowColor() { return this._state.shadowColor; }
+            set shadowColor(val) { this._state.shadowColor = val; }
+            get shadowBlur() { return this._state.shadowBlur; }
+            set shadowBlur(val) { this._state.shadowBlur = val; }
+            get shadowOffsetX() { return this._state.shadowOffsetX; }
+            set shadowOffsetX(val) { this._state.shadowOffsetX = val; }
+            get shadowOffsetY() { return this._state.shadowOffsetY; }
+            set shadowOffsetY(val) { this._state.shadowOffsetY = val; }
+
+            _transformPoint(x, y) {
+                const [a, b, c, d, e, f] = this._state.matrix;
+                return {
+                    x: a * x + c * y + e,
+                    y: b * x + d * y + f
+                };
+            }
+
+            scale(sx, sy) {
+                const [a, b, c, d, e, f] = this._state.matrix;
+                this._state.matrix = [a * sx, b * sx, c * sy, d * sy, e, f];
+            }
+
+            translate(dx, dy) {
+                const [a, b, c, d, e, f] = this._state.matrix;
+                this._state.matrix = [a, b, c, d, a * dx + c * dy + e, b * dx + d * dy + f];
+            }
+
+            rotate(angle) {
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const [a, b, c, d, e, f] = this._state.matrix;
+                this._state.matrix = [
+                    a * cos + c * sin,
+                    b * cos + d * sin,
+                    -a * sin + c * cos,
+                    -b * sin + d * cos,
+                    e,
+                    f
+                ];
+            }
+
+            transform(a, b, c, d, e, f) {
+                const [a0, b0, c0, d0, e0, f0] = this._state.matrix;
+                this._state.matrix = [
+                    a0 * a + c0 * b,
+                    b0 * a + d0 * b,
+                    a0 * c + c0 * d,
+                    b0 * c + d0 * d,
+                    a0 * e + c0 * f + e0,
+                    b0 * e + d0 * f + f0
+                ];
+            }
+
+            setTransform(a, b, c, d, e, f) {
+                if (typeof a === 'object' && a !== null) {
+                    this._state.matrix = [a.a, a.b, a.c, a.d, a.e, a.f];
+                } else {
+                    this._state.matrix = [a, b, c, d, e, f];
+                }
+            }
+
+            resetTransform() {
+                this._state.matrix = [1, 0, 0, 1, 0, 0];
+            }
+
+            getTransform() {
+                const [a, b, c, d, e, f] = this._state.matrix;
+                return { a, b, c, d, e, f };
+            }
+
+            setLineDash(dash) {
+                this._state.lineDash = Array.from(dash || []);
+            }
+
+            getLineDash() {
+                return this._state.lineDash || [];
+            }
+
+            beginPath() {
+                this.currentPath = [];
+            }
+
+            moveTo(x, y) {
+                const pt = this._transformPoint(x, y);
+                this.currentPath.push(`M ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`);
+            }
+
+            lineTo(x, y) {
+                const pt = this._transformPoint(x, y);
+                this.currentPath.push(`L ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`);
+            }
+
+            closePath() {
+                this.currentPath.push('Z');
+            }
+
+            rect(x, y, w, h) {
+                this.moveTo(x, y);
+                this.lineTo(x + w, y);
+                this.lineTo(x + w, y + h);
+                this.lineTo(x, y + h);
+                this.closePath();
+            }
+
+            roundRect(x, y, w, h, radii) {
+                let tl = 0, tr = 0, br = 0, bl = 0;
+                if (typeof radii === 'number') {
+                    tl = tr = br = bl = radii;
+                } else if (Array.isArray(radii)) {
+                    if (radii.length === 1) tl = tr = br = bl = radii[0];
+                    else if (radii.length === 2) { tl = br = radii[0]; tr = bl = radii[1]; }
+                    else if (radii.length === 4) { [tl, tr, br, bl] = radii; }
+                } else if (radii && typeof radii === 'object') {
+                    tl = radii.topLeft || radii.top || 0;
+                    tr = radii.topRight || radii.top || 0;
+                    br = radii.bottomRight || radii.bottom || 0;
+                    bl = radii.bottomLeft || radii.bottom || 0;
+                }
+                const maxR = Math.min(Math.abs(w) / 2, Math.abs(h) / 2);
+                tl = Math.min(tl, maxR);
+                tr = Math.min(tr, maxR);
+                br = Math.min(br, maxR);
+                bl = Math.min(bl, maxR);
+
+                this.moveTo(x + tl, y);
+                this.lineTo(x + w - tr, y);
+                if (tr > 0) this.arc(x + w - tr, y + tr, tr, -Math.PI / 2, 0, false);
+                else this.lineTo(x + w, y);
+                this.lineTo(x + w, y + h - br);
+                if (br > 0) this.arc(x + w - br, y + h - br, br, 0, Math.PI / 2, false);
+                else this.lineTo(x + w, y + h);
+                this.lineTo(x + bl, y + h);
+                if (bl > 0) this.arc(x + bl, y + h - bl, bl, Math.PI / 2, Math.PI, false);
+                else this.lineTo(x, y + h);
+                this.lineTo(x, y + tl);
+                if (tl > 0) this.arc(x + tl, y + tl, tl, Math.PI, -Math.PI / 2, false);
+                else this.lineTo(x, y);
+                this.closePath();
+            }
+
+            bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y) {
+                const cp1 = this._transformPoint(cp1x, cp1y);
+                const cp2 = this._transformPoint(cp2x, cp2y);
+                const pt = this._transformPoint(x, y);
+                this.currentPath.push(`C ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)}, ${cp2.x.toFixed(2)} ${cp2.y.toFixed(2)}, ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`);
+            }
+
+            quadraticCurveTo(cpx, cpy, x, y) {
+                const cp = this._transformPoint(cpx, cpy);
+                const pt = this._transformPoint(x, y);
+                this.currentPath.push(`Q ${cp.x.toFixed(2)} ${cp.y.toFixed(2)}, ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`);
+            }
+
+            arcTo(x1, y1, x2, y2, radius) {
+                const pt1 = this._transformPoint(x1, y1);
+                this.currentPath.push(`L ${pt1.x.toFixed(2)} ${pt1.y.toFixed(2)}`);
+            }
+
+            arc(x, y, radius, startAngle, endAngle, counterclockwise) {
+                const p1 = this._transformPoint(x + radius * Math.cos(startAngle), y + radius * Math.sin(startAngle));
+                const p2 = this._transformPoint(x + radius * Math.cos(endAngle), y + radius * Math.sin(endAngle));
+                const largeArc = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+                const sweep = counterclockwise ? 0 : 1;
+                // Calculate scaled radius based on matrix
+                const rx = radius * Math.sqrt(this._state.matrix[0] * this._state.matrix[0] + this._state.matrix[1] * this._state.matrix[1]);
+                const ry = radius * Math.sqrt(this._state.matrix[2] * this._state.matrix[2] + this._state.matrix[3] * this._state.matrix[3]);
+                
+                if (this.currentPath.length === 0) {
+                    this.currentPath.push(`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+                } else {
+                    this.currentPath.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+                }
+                this.currentPath.push(`A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} ${sweep} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`);
+            }
+
+            stroke() {
+                if (this.currentPath.length === 0) return;
+                const d = this.currentPath.join(' ');
+                let dashAttr = '';
+                if (this._state.lineDash && this._state.lineDash.length > 0) {
+                    dashAttr = ` stroke-dasharray="${this._state.lineDash.join(',')}"`;
+                }
+                this.elements.push(
+                    `<path d="${d}" fill="none" stroke="${this._state.strokeStyle}" stroke-width="${this._state.lineWidth}" stroke-linecap="${this._state.lineCap}" stroke-linejoin="${this._state.lineJoin}" opacity="${this._state.globalAlpha}"${dashAttr}/>`
+                );
+            }
+
+            fill() {
+                if (this.currentPath.length === 0) return;
+                const d = this.currentPath.join(' ');
+                this.elements.push(
+                    `<path d="${d}" fill="${this._state.fillStyle}" opacity="${this._state.globalAlpha}"/>`
+                );
+            }
+
+            fillRect(x, y, w, h) {
+                this.beginPath();
+                this.rect(x, y, w, h);
+                this.fill();
+            }
+
+            strokeRect(x, y, w, h) {
+                this.beginPath();
+                this.rect(x, y, w, h);
+                this.stroke();
+            }
+
+            clearRect() { }
+            clip() { }
+
+            measureText(text) {
+                if (this._measureCtx) {
+                    this._measureCtx.font = this._state.font;
+                    return this._measureCtx.measureText(text);
+                }
+                return { width: (text || '').length * 8 };
+            }
+
+            fillText(text, x, y) {
+                if (text === undefined || text === null || text === '') return;
+                const str = String(text);
+
+                const escaped = str
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+
+                let anchor = 'start';
+                if (this._state.textAlign === 'center') anchor = 'middle';
+                else if (this._state.textAlign === 'right' || this._state.textAlign === 'end') anchor = 'end';
+
+                let baseline = 'alphabetic';
+                if (this._state.textBaseline === 'top' || this._state.textBaseline === 'hanging') baseline = 'hanging';
+                else if (this._state.textBaseline === 'middle') baseline = 'central';
+                else if (this._state.textBaseline === 'bottom') baseline = 'text-after-edge';
+
+                const font = this._state.font || '13px Inter, sans-serif';
+                const [a, b, c, d, e, f] = this._state.matrix;
+                
+                // Em vez de pre-transformar o x,y, passamos eles puros e aplicamos o matrix() no elemento SVG.
+                // Isso garante que rotações e escalas afetem o texto inteiramente (não apenas sua origem).
+                this.elements.push(
+                    `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" transform="matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})" fill="${this._state.fillStyle}" font-family="Inter, sans-serif" style="font: ${font};" text-anchor="${anchor}" dominant-baseline="${baseline}" opacity="${this._state.globalAlpha}">${escaped}</text>`
+                );
+            }
+
+            strokeText(text, x, y) { }
+            drawImage() { }
+            createLinearGradient() { return { addColorStop: () => { } }; }
+            createRadialGradient() { return { addColorStop: () => { } }; }
+            createPattern() { return null; }
+            isPointInPath() { return false; }
+            isPointInStroke() { return false; }
+
+            getSerializedSvg(bg) {
+                return [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}">`,
+                    `  <rect width="100%" height="100%" fill="${bg || '#0f172a'}"/>`,
+                    `  <g id="chart-content">`,
+                    ...this.elements.map(el => `    ${el}`),
+                    `  </g>`,
+                    '</svg>'
+                ].join('\n');
+            }
+        }
+
+        function exportChartSVG(canvasId, fileName) {
+            const sourceCanvas = document.getElementById(canvasId);
+            if (!sourceCanvas) return;
+
+            const chartMap = {
+                'accuracyChart': chartInstance,
+                'errorsChart': errorsChartInstance,
+                'datasetChart': datasetChartInstance,
+                'vehicleTypeChart': vehicleTypeChartInstance,
+                'cerChart': cerChartInstance
+            };
+            const sourceChart = chartMap[canvasId];
+            if (!sourceChart) { alert('Render o gráfico antes de exportar.'); return; }
+
+            // Usa as dimensões CSS em vez das físicas multiplicadas por devicePixelRatio
+            const w = sourceCanvas.clientWidth || (sourceCanvas.width / (window.devicePixelRatio || 1));
+            const h = sourceCanvas.clientHeight || (sourceCanvas.height / (window.devicePixelRatio || 1));
+
+            const svgCtx = new SVGContext2D(w, h);
+            const theme = getThemeColors();
+
+            // Mock de Canvas para enganar o Chart.js
+            const fakeCanvas = document.createElement('canvas');
+            fakeCanvas.width = w;
+            fakeCanvas.height = h;
+            // Deve estar visível no DOM para o Chart.js não ignorar o update (pode estar absoluto offscreen)
+            fakeCanvas.style.position = 'absolute';
+            fakeCanvas.style.top = '-9999px';
+            fakeCanvas.style.left = '-9999px';
+            fakeCanvas.style.width = w + 'px';
+            fakeCanvas.style.height = h + 'px';
+            fakeCanvas.style.display = 'block';
+            document.body.appendChild(fakeCanvas);
+            
+            fakeCanvas.getContext = (type) => type === '2d' ? svgCtx : null;
+            // IMPORTANTE: Chart.js checa se context.canvas === canvas!
+            svgCtx.canvas = fakeCanvas;
+
+            // Clona a configuração do gráfico original
+            const config = {
+                type: sourceChart.config.type,
+                data: JSON.parse(JSON.stringify(sourceChart.data)),
+                options: JSON.parse(JSON.stringify(sourceChart.config.options || {})),
+                plugins: sourceChart.config.plugins || []
+            };
+
+            // Trava animação, responsividade e escala (MUITO IMPORTANTE para não distorcer o SVG)
+            config.options.animation = false;
+            config.options.responsive = false;
+            config.options.devicePixelRatio = 1;
+
+            let tempChart;
+            try {
+                // Instanciar o Chart já dispara a renderização completa (background, axes, bars, labels) no nosso svgCtx
+                tempChart = new Chart(fakeCanvas, config);
+                // Força atualização síncrona
+                tempChart.update('none');
+            } catch (e) {
+                console.error('SVG export error:', e);
+                if (tempChart) tempChart.destroy();
+                document.body.removeChild(fakeCanvas);
+                return;
+            }
+
+            const svgString = svgCtx.getSerializedSvg(theme.exportBg);
+            tempChart.destroy();
+            document.body.removeChild(fakeCanvas);
+
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = url;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
 
         function updateAllChartsFromGlobal() {
+
             const globalCbs = document.querySelectorAll('#global-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
+
 
             const accCbs = document.querySelectorAll('#accuracy-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
             accCbs.forEach((cb, i) => { if (globalCbs[i]) cb.checked = globalCbs[i].checked; });
@@ -714,56 +1151,44 @@
             });
         }
 
-        function applySemanticFilters() {
-            const tpsVal = document.getElementById('tps-filter').value;
-            const attVal = document.getElementById('att-filter').value;
+        // Mapeamento de nomes antigos para novos.
+        // Cobre as variações de formato encontradas no JSON (espaços, ordem de palavras, etc.)
+        const MODEL_NAME_MAP = [
+            // Formato com '+' (ex: BASE+1D+TPS)
+            { pattern: /^BASE\+1D\+TPS$/i, label: 'TRBA' },
+            { pattern: /^CTR\+1D\+TPS$/i, label: 'CTRBA' },
+            { pattern: /^BASE\+2D\+TPS$/i, label: 'TRB2D' },
+            { pattern: /^CTR\+2D\+TPS$/i, label: 'CTRB2D' },
+            // Formato com espaço — qualquer ordem de TPS/1D/2D (ex: BASE TPS 1D, BASE 1D TPS)
+            { pattern: /^BASE\b.*\bTPS\b.*\b1D\b/i, label: 'TRBA' },
+            { pattern: /^BASE\b.*\b1D\b.*\bTPS\b/i, label: 'TRBA' },
+            { pattern: /^CTR\b.*\bTPS\b.*\b1D\b/i, label: 'CTRBA' },
+            { pattern: /^CTR\b.*\b1D\b.*\bTPS\b/i, label: 'CTRBA' },
+            { pattern: /^BASE\b.*\bTPS\b.*\b2D\b/i, label: 'TRB2D' },
+            { pattern: /^BASE\b.*\b2D\b.*\bTPS\b/i, label: 'TRB2D' },
+            { pattern: /^CTR\b.*\bTPS\b.*\b2D\b/i, label: 'CTRB2D' },
+            { pattern: /^CTR\b.*\b2D\b.*\bTPS\b/i, label: 'CTRB2D' },
+        ];
 
-            const globalCbs = document.querySelectorAll('#global-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
-            const globalAllCb = document.querySelector('#global-model-dropdown-menu .select-all');
+        // Modelos permitidos (novos nomes)
+        const ALLOWED_MODELS = new Set(['TRBA', 'CTRBA', 'TRB2D', 'CTRB2D']);
 
-            globalCbs.forEach(cb => {
-                const label = cb.nextSibling.textContent;
-                let pass = true;
-
-                if (tpsVal === 'SIM' && !label.includes('TPS')) pass = false;
-                if (tpsVal === 'NAO' && label.includes('TPS')) pass = false;
-
-                if (attVal === '1D' && !label.includes('1D')) pass = false;
-                if (attVal === '2D' && !label.includes('2D')) pass = false;
-
-                cb.checked = pass;
-            });
-
-            if (globalAllCb) {
-                globalAllCb.checked = Array.from(globalCbs).every(cb => cb.checked);
+        function normalizeModelLabel(label) {
+            if (!label) return label;
+            // Já é um dos nomes novos?
+            if (ALLOWED_MODELS.has(label)) return label;
+            // Tenta correspondência por padrão
+            for (const entry of MODEL_NAME_MAP) {
+                if (entry.pattern.test(label.trim())) return entry.label;
             }
-
-            updateAllChartsFromGlobal();
+            return label; // retorna o original se não casou com nada
         }
 
         function resetGlobalFilters() {
             const allCb = document.querySelector('#global-model-dropdown-menu .select-all');
-            let needsUpdate = false;
-
             if (allCb && !allCb.checked) {
                 allCb.checked = true;
                 document.querySelectorAll('#global-model-dropdown-menu input[type="checkbox"]:not(.select-all)').forEach(cb => cb.checked = true);
-                needsUpdate = true;
-            }
-
-            const tps = document.getElementById('tps-filter');
-            if (tps && tps.value !== 'ALL') {
-                tps.value = 'ALL';
-                needsUpdate = true;
-            }
-
-            const att = document.getElementById('att-filter');
-            if (att && att.value !== 'ALL') {
-                att.value = 'ALL';
-                needsUpdate = true;
-            }
-
-            if (needsUpdate) {
                 updateAllChartsFromGlobal();
             }
         }
@@ -798,7 +1223,7 @@
 
         let datasetCsvData = [];
         let datasetChartInstance = null;
-        let referenceDatasetIndexCsv = null;
+        let referenceDatasetIndexCsv = [null, null]; // [refUFPR, refRodoSol] — independentes por categoria
 
         let vehicleTypeChartInstance = null;
         let referenceVehicleTypeIndexCsv = null;
@@ -915,6 +1340,10 @@
                 });
             }
 
+            // Normaliza os labels e filtra apenas os 4 modelos permitidos
+            datasetCsvData.forEach(d => { d.label = normalizeModelLabel(d.label); });
+            datasetCsvData = datasetCsvData.filter(d => ALLOWED_MODELS.has(d.label));
+
             // Sort to match metricsData if possible
             if (metricsData && metricsData.models) {
                 datasetCsvData.sort((a, b) => {
@@ -992,7 +1421,7 @@
             const ctx = document.getElementById('datasetChart').getContext('2d');
             if (datasetChartInstance) {
                 datasetChartInstance.destroy();
-                referenceDatasetIndexCsv = null;
+                referenceDatasetIndexCsv = [null, null]; // [refUFPR, refRodoSol]
             }
 
             const modelCheckboxes = document.querySelectorAll('#dataset-model-dropdown-menu input[type="checkbox"]:not(.select-all)');
@@ -1021,8 +1450,8 @@
 
             const theme = getThemeColors();
 
-            const simpleAccuracyLabelPlugin = {
-                id: 'simpleAccuracyLabelPlugin',
+            const deltaDatasetPlugin = {
+                id: 'deltaDatasetPlugin',
                 afterDatasetsDraw(chart, args, pluginOptions) {
                     const { ctx } = chart;
                     const numCategories = 2; // UFPR and RodoSol
@@ -1030,9 +1459,30 @@
                     ctx.save();
                     ctx.font = '600 13px Inter';
                     ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
 
                     for (let c = 0; c < numCategories; c++) {
+                        // Referência independente por categoria; default = TRBA
+                        const explicitRef = Array.isArray(referenceDatasetIndexCsv)
+                            ? referenceDatasetIndexCsv[c]
+                            : referenceDatasetIndexCsv;
+                        const trbaIdx = chart.data.datasets.findIndex(ds => ds.label === 'TRBA');
+                        const effectiveRef = (explicitRef !== null) ? explicitRef
+                            : (trbaIdx !== -1 ? trbaIdx : -1);
+
+                        let refVal;
+                        if (effectiveRef !== -1 && !chart.getDatasetMeta(effectiveRef).hidden) {
+                            refVal = parseFloat(chart.data.datasets[effectiveRef].data[c]);
+                        } else {
+                            refVal = -Infinity;
+                            chart.data.datasets.forEach((ds, i) => {
+                                const meta = chart.getDatasetMeta(i);
+                                if (!meta.hidden) {
+                                    const val = parseFloat(ds.data[c]);
+                                    if (val > refVal) refVal = val;
+                                }
+                            });
+                        }
+
                         chart.data.datasets.forEach((dataset, i) => {
                             const meta = chart.getDatasetMeta(i);
                             if (!meta || meta.hidden) return;
@@ -1041,10 +1491,32 @@
                             if (!bar) return;
 
                             const val = parseFloat(dataset.data[c]);
-                            const text = val.toFixed(2) + '%';
+                            let diff = val - refVal;
+                            diff = Math.round(diff * 100) / 100;
 
+                            // 1. Acurácia Absoluta (acima da barra)
+                            ctx.textBaseline = 'bottom';
+                            ctx.font = '600 13px Inter';
                             ctx.fillStyle = theme.tickColor;
-                            ctx.fillText(text, bar.x, bar.y - 6);
+                            ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
+
+                            // 2. Diferença Delta (dentro da barra)
+                            let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + ' p.p.';
+                            if (diff > 0) diffText = '+' + diffText;
+
+                            ctx.textBaseline = 'top';
+                            ctx.font = '700 12px Inter';
+                            ctx.fillStyle = '#ffffff';
+
+                            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                            ctx.shadowBlur = 3;
+                            ctx.shadowOffsetX = 0;
+                            ctx.shadowOffsetY = 1;
+
+                            ctx.fillText(diffText, bar.x, bar.y + 8);
+
+                            ctx.shadowColor = 'transparent';
+                            ctx.shadowBlur = 0;
                         });
                     }
                     ctx.restore();
@@ -1071,7 +1543,7 @@
                         legend: {
                             display: true,
                             onClick: () => { },
-                            position: 'bottom',
+                            position: 'right',
                             labels: {
                                 color: theme.legendColor,
                                 font: { family: 'Inter', size: 12, weight: '500' },
@@ -1080,11 +1552,7 @@
                                 generateLabels: (chart) => {
                                     const original = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                                     original.forEach(label => {
-                                        if (referenceDatasetIndexCsv !== null && label.datasetIndex !== referenceDatasetIndexCsv) {
-                                            label.fontColor = theme.isLight ? 'rgba(15, 23, 42, 0.3)' : 'rgba(248, 250, 252, 0.3)';
-                                        } else {
-                                            label.fontColor = theme.legendColor;
-                                        }
+                                        label.fontColor = theme.legendColor;
                                     });
                                     return original;
                                 }
@@ -1109,10 +1577,20 @@
                     onClick: (e, elements, chart) => {
                         const nearestElements = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, true);
                         if (nearestElements && nearestElements.length > 0) {
-                            referenceDatasetIndexCsv = nearestElements[0].datasetIndex;
+                            const categoryIndex = nearestElements[0].index;       // 0 = UFPR, 1 = RodoSol
+                            const datasetIndex = nearestElements[0].datasetIndex;
+                            if (!Array.isArray(referenceDatasetIndexCsv)) {
+                                referenceDatasetIndexCsv = [null, null];
+                            }
+                            // Toggle: clicar duas vezes na mesma referência limpa apenas aquela categoria
+                            if (referenceDatasetIndexCsv[categoryIndex] === datasetIndex) {
+                                referenceDatasetIndexCsv[categoryIndex] = null;
+                            } else {
+                                referenceDatasetIndexCsv[categoryIndex] = datasetIndex;
+                            }
                             chart.update();
                         } else {
-                            referenceDatasetIndexCsv = null;
+                            referenceDatasetIndexCsv = [null, null];
                             chart.update();
                         }
                     },
@@ -1135,9 +1613,10 @@
                         }
                     }
                 },
-                plugins: [simpleAccuracyLabelPlugin]
+                plugins: [deltaDatasetPlugin]
             });
         }
+
 
         function renderVehicleTypeSelector() {
             const container = document.getElementById('vehicle-type-model-dropdown-menu');
@@ -1233,8 +1712,11 @@
 
                     for (let c = 0; c < numCategories; c++) {
                         let refVal;
-                        if (referenceVehicleTypeIndexCsv !== null && !chart.getDatasetMeta(referenceVehicleTypeIndexCsv).hidden) {
-                            refVal = parseFloat(chart.data.datasets[referenceVehicleTypeIndexCsv].data[c]);
+                        const _trbaIdxVT = referenceVehicleTypeIndexCsv !== null
+                            ? referenceVehicleTypeIndexCsv
+                            : chart.data.datasets.findIndex(ds => ds.label === 'TRBA');
+                        if (_trbaIdxVT !== -1 && !chart.getDatasetMeta(_trbaIdxVT).hidden) {
+                            refVal = parseFloat(chart.data.datasets[_trbaIdxVT].data[c]);
                         } else {
                             refVal = -Infinity;
                             chart.data.datasets.forEach((ds, i) => {
@@ -1264,7 +1746,7 @@
                             ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
 
                             // 2. Diferença Delta (Dentro da barra)
-                            let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + '%';
+                            let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + ' p.p.';
                             if (diff > 0) diffText = '+' + diffText;
 
                             ctx.textBaseline = 'top';
@@ -1306,7 +1788,7 @@
                         legend: {
                             display: true,
                             onClick: () => { },
-                            position: 'bottom',
+                            position: 'right',
                             labels: {
                                 color: theme.legendColor,
                                 font: { family: 'Inter', size: 12, weight: '500' },
@@ -1442,8 +1924,13 @@
         }
 
         function initApp() {
-            // Ordena os modelos por acurácia (do maior para o menor)
+            // Normaliza e filtra os modelos para os 4 nomes permitidos
             if (metricsData && metricsData.models) {
+                metricsData.models.forEach(m => {
+                    m.label = normalizeModelLabel(m.label);
+                });
+                metricsData.models = metricsData.models.filter(m => ALLOWED_MODELS.has(m.label));
+                // Ordena os modelos por acurácia (do maior para o menor)
                 metricsData.models.sort((a, b) => b.plate_accuracy - a.plate_accuracy);
             }
 
@@ -1503,8 +1990,11 @@
                     const { ctx } = chart;
 
                     let refVal;
-                    if (referenceDatasetIndex !== null && !chart.getDatasetMeta(referenceDatasetIndex).hidden) {
-                        refVal = parseFloat(chart.data.datasets[referenceDatasetIndex].data[0]);
+                    const _trbaIdxAcc = referenceDatasetIndex !== null
+                        ? referenceDatasetIndex
+                        : chart.data.datasets.findIndex(ds => ds.label === 'TRBA');
+                    if (_trbaIdxAcc !== -1 && !chart.getDatasetMeta(_trbaIdxAcc).hidden) {
+                        refVal = parseFloat(chart.data.datasets[_trbaIdxAcc].data[0]);
                     } else {
                         refVal = -Infinity;
                         chart.data.datasets.forEach((ds, i) => {
@@ -1536,7 +2026,7 @@
                         ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
 
                         // 2. Diferença Delta (Abaixo do topo da barra / dentro da barra)
-                        let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + '%';
+                        let diffText = diff === 0 ? 'Ref' : diff.toFixed(2) + ' p.p.';
                         if (diff > 0) diffText = '+' + diffText;
 
                         ctx.textBaseline = 'top';
@@ -1577,7 +2067,7 @@
                         legend: {
                             display: true,
                             onClick: () => { }, // Desabilita o clique para não ocultar as barras
-                            position: 'bottom',
+                            position: 'right',
                             labels: {
                                 color: theme.legendColor,
                                 font: { family: 'Inter', size: 12, weight: '500' },
@@ -1628,10 +2118,22 @@
                         y: {
                             beginAtZero: true,
                             max: 100,
+                            title: {
+                                display: true,
+                                text: 'Accuracy (%)',
+                                color: theme.tickColor,
+                                font: { family: 'Inter', size: 13, weight: '500' }
+                            },
                             grid: { color: theme.gridColor },
                             ticks: { color: theme.tickColor, font: { family: 'Inter' } }
                         },
                         x: {
+                            title: {
+                                display: true,
+                                text: 'Models',
+                                color: theme.tickColor,
+                                font: { family: 'Inter', size: 13, weight: '500' }
+                            },
                             grid: { display: false },
                             ticks: { color: theme.tickColor, font: { family: 'Inter', size: 14, weight: '600' } }
                         }
@@ -1847,10 +2349,13 @@
                     for (let c = 0; c < numClasses; c++) {
                         let refVal = Infinity;
 
-                        if (referenceDatasetIndexErrors !== null) {
-                            const meta = chart.getDatasetMeta(referenceDatasetIndexErrors);
+                        const _trbaIdxErr = referenceDatasetIndexErrors !== null
+                            ? referenceDatasetIndexErrors
+                            : chart.data.datasets.findIndex(ds => ds.label === 'TRBA');
+                        if (_trbaIdxErr !== -1) {
+                            const meta = chart.getDatasetMeta(_trbaIdxErr);
                             if (meta && !meta.hidden) {
-                                refVal = parseFloat(chart.data.datasets[referenceDatasetIndexErrors].data[c]);
+                                refVal = parseFloat(chart.data.datasets[_trbaIdxErr].data[c]);
                             }
                         }
 
@@ -1929,7 +2434,7 @@
                         legend: {
                             display: true,
                             onClick: () => { }, // Desabilita o clique para não ocultar as barras
-                            position: 'bottom',
+                            position: 'right',
                             labels: {
                                 color: theme.legendColor,
                                 font: { family: 'Inter', size: 12, weight: '500' },
@@ -2058,8 +2563,11 @@
                     const { ctx } = chart;
 
                     let refVal;
-                    if (referenceDatasetIndexCer !== null && !chart.getDatasetMeta(referenceDatasetIndexCer).hidden) {
-                        refVal = parseFloat(chart.data.datasets[referenceDatasetIndexCer].data[0]);
+                    const _trbaIdxCer = referenceDatasetIndexCer !== null
+                        ? referenceDatasetIndexCer
+                        : chart.data.datasets.findIndex(ds => ds.label === 'TRBA');
+                    if (_trbaIdxCer !== -1 && !chart.getDatasetMeta(_trbaIdxCer).hidden) {
+                        refVal = parseFloat(chart.data.datasets[_trbaIdxCer].data[0]);
                     } else {
                         refVal = Infinity;
                         chart.data.datasets.forEach((ds, i) => {
@@ -2088,7 +2596,7 @@
 
                         diff = Math.round(diff * 100) / 100;
 
-                        let text = diff === 0 ? '0' : diff.toFixed(2) + '%';
+                        let text = diff === 0 ? '0' : diff.toFixed(2) + ' p.p.';
                         if (diff > 0) text = '+' + text;
 
                         if (diff === 0) {
@@ -2122,7 +2630,7 @@
                         legend: {
                             display: true,
                             onClick: () => { },
-                            position: 'bottom',
+                            position: 'right',
                             labels: {
                                 color: theme.legendColor,
                                 font: { family: 'Inter', size: 12, weight: '500' },
