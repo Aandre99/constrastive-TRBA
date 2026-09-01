@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         :root {
@@ -351,6 +353,16 @@
             border-color: rgba(167, 139, 250, 0.9);
             background: rgba(167, 139, 250, 0.1);
         }
+
+        .export-group .btn-pdf {
+            border-color: rgba(244, 63, 94, 0.5);
+            color: rgba(244, 63, 94, 0.9);
+        }
+
+        .export-group .btn-pdf:hover {
+            border-color: rgba(244, 63, 94, 0.9);
+            background: rgba(244, 63, 94, 0.1);
+        }
     </style>
 </head>
 
@@ -418,6 +430,8 @@
                             onclick="exportChart('accuracyChart', 'acuracia_modelos.png')">Export PNG</button>
                         <button class="dropdown-btn btn-svg"
                             onclick="exportChartSVG('accuracyChart', 'acuracia_modelos.svg')">Export SVG</button>
+                        <button class="dropdown-btn btn-pdf"
+                            onclick="exportChartPDF('accuracyChart', 'acuracia_modelos.pdf')">Export PDF</button>
                     </div>
                 </div>
 
@@ -449,6 +463,8 @@
                             PNG</button>
                         <button class="dropdown-btn btn-svg"
                             onclick="exportChartSVG('errorsChart', 'erros_classe.svg')">Export SVG</button>
+                        <button class="dropdown-btn btn-pdf"
+                            onclick="exportChartPDF('errorsChart', 'erros_classe.pdf')">Export PDF</button>
                     </div>
                 </div>
 
@@ -491,6 +507,8 @@
                                 onclick="exportChart('datasetChart', 'acuracia_dataset.png')">Export PNG</button>
                             <button class="dropdown-btn btn-svg"
                                 onclick="exportChartSVG('datasetChart', 'acuracia_dataset.svg')">Export SVG</button>
+                            <button class="dropdown-btn btn-pdf"
+                                onclick="exportChartPDF('datasetChart', 'acuracia_dataset.pdf')">Export PDF</button>
                         </div>
                     </div>
                 </div>
@@ -533,6 +551,9 @@
                             <button class="dropdown-btn btn-svg"
                                 onclick="exportChartSVG('vehicleTypeChart', 'acuracia_vehicle_type.svg')">Export
                                 SVG</button>
+                            <button class="dropdown-btn btn-pdf"
+                                onclick="exportChartPDF('vehicleTypeChart', 'acuracia_vehicle_type.pdf')">Export
+                                PDF</button>
                         </div>
                     </div>
                 </div>
@@ -572,6 +593,8 @@
                             PNG</button>
                         <button class="dropdown-btn btn-svg"
                             onclick="exportChartSVG('cerChart', 'cer_global.svg')">Export SVG</button>
+                        <button class="dropdown-btn btn-pdf"
+                            onclick="exportChartPDF('cerChart', 'cer_global.pdf')">Export PDF</button>
                     </div>
                 </div>
 
@@ -645,6 +668,34 @@
             link.download = fileName;
             link.href = tempCanvas.toDataURL('image/png');
             link.click();
+        }
+
+        function exportChartPDF(canvasId, fileName) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const ctx = tempCanvas.getContext('2d');
+
+            const theme = getThemeColors();
+            ctx.fillStyle = theme.exportBg;
+            ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            ctx.drawImage(canvas, 0, 0);
+
+            const imgData = tempCanvas.toDataURL('image/jpeg', 1.0);
+            const { jsPDF } = window.jspdf;
+
+            const pdf = new jsPDF({
+                orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+            });
+
+            pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+            pdf.save(fileName);
         }
         class SVGContext2D {
             constructor(width, height) {
@@ -878,13 +929,26 @@
                 // Calculate scaled radius based on matrix
                 const rx = radius * Math.sqrt(this._state.matrix[0] * this._state.matrix[0] + this._state.matrix[1] * this._state.matrix[1]);
                 const ry = radius * Math.sqrt(this._state.matrix[2] * this._state.matrix[2] + this._state.matrix[3] * this._state.matrix[3]);
-                
+
                 if (this.currentPath.length === 0) {
                     this.currentPath.push(`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
                 } else {
                     this.currentPath.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
                 }
                 this.currentPath.push(`A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 ${largeArc} ${sweep} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`);
+            }
+
+            _parseColor(color, globalAlpha) {
+                let fill = color;
+                let opacity = globalAlpha !== undefined ? globalAlpha : 1.0;
+                if (typeof color === 'string' && color.startsWith('rgba')) {
+                    const match = color.match(/rgba\((.*?),\s*(.*?),\s*(.*?),\s*(.*?)\)/);
+                    if (match) {
+                        fill = `rgb(${match[1].trim()}, ${match[2].trim()}, ${match[3].trim()})`;
+                        opacity = parseFloat(match[4].trim()) * opacity;
+                    }
+                }
+                return { fill, opacity };
             }
 
             stroke() {
@@ -894,16 +958,18 @@
                 if (this._state.lineDash && this._state.lineDash.length > 0) {
                     dashAttr = ` stroke-dasharray="${this._state.lineDash.join(',')}"`;
                 }
+                const parsed = this._parseColor(this._state.strokeStyle, this._state.globalAlpha);
                 this.elements.push(
-                    `<path d="${d}" fill="none" stroke="${this._state.strokeStyle}" stroke-width="${this._state.lineWidth}" stroke-linecap="${this._state.lineCap}" stroke-linejoin="${this._state.lineJoin}" opacity="${this._state.globalAlpha}"${dashAttr}/>`
+                    `<path d="${d}" fill="none" stroke="${parsed.fill}" stroke-width="${this._state.lineWidth}" stroke-linecap="${this._state.lineCap}" stroke-linejoin="${this._state.lineJoin}" opacity="${parsed.opacity}"${dashAttr}/>`
                 );
             }
 
             fill() {
                 if (this.currentPath.length === 0) return;
                 const d = this.currentPath.join(' ');
+                const parsed = this._parseColor(this._state.fillStyle, this._state.globalAlpha);
                 this.elements.push(
-                    `<path d="${d}" fill="${this._state.fillStyle}" opacity="${this._state.globalAlpha}"/>`
+                    `<path d="${d}" fill="${parsed.fill}" opacity="${parsed.opacity}"/>`
                 );
             }
 
@@ -944,18 +1010,26 @@
                 if (this._state.textAlign === 'center') anchor = 'middle';
                 else if (this._state.textAlign === 'right' || this._state.textAlign === 'end') anchor = 'end';
 
-                let baseline = 'alphabetic';
-                if (this._state.textBaseline === 'top' || this._state.textBaseline === 'hanging') baseline = 'hanging';
-                else if (this._state.textBaseline === 'middle') baseline = 'central';
-                else if (this._state.textBaseline === 'bottom') baseline = 'text-after-edge';
-
                 const font = this._state.font || '13px Inter, sans-serif';
+                let fontSize = 13;
+                const match = font.match(/(\d+)px/);
+                if (match) fontSize = parseInt(match[1]);
+
+                let yOffset = 0;
+                if (this._state.textBaseline === 'top' || this._state.textBaseline === 'hanging') {
+                    yOffset = fontSize * 0.75;
+                } else if (this._state.textBaseline === 'middle') {
+                    yOffset = fontSize * 0.35;
+                } else if (this._state.textBaseline === 'bottom') {
+                    yOffset = -fontSize * 0.15;
+                }
+                const adjustedY = y + yOffset;
+
                 const [a, b, c, d, e, f] = this._state.matrix;
-                
-                // Em vez de pre-transformar o x,y, passamos eles puros e aplicamos o matrix() no elemento SVG.
-                // Isso garante que rotações e escalas afetem o texto inteiramente (não apenas sua origem).
+                const parsed = this._parseColor(this._state.fillStyle, this._state.globalAlpha);
+
                 this.elements.push(
-                    `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" transform="matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})" fill="${this._state.fillStyle}" font-family="Inter, sans-serif" style="font: ${font};" text-anchor="${anchor}" dominant-baseline="${baseline}" opacity="${this._state.globalAlpha}">${escaped}</text>`
+                    `<text x="${x.toFixed(2)}" y="${adjustedY.toFixed(2)}" transform="matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})" fill="${parsed.fill}" font-family="Inter, sans-serif" style="font: ${font};" text-anchor="${anchor}" opacity="${parsed.opacity}">${escaped}</text>`
                 );
             }
 
@@ -994,9 +1068,16 @@
             const sourceChart = chartMap[canvasId];
             if (!sourceChart) { alert('Render o gráfico antes de exportar.'); return; }
 
-            // Usa as dimensões CSS em vez das físicas multiplicadas por devicePixelRatio
-            const w = sourceCanvas.clientWidth || (sourceCanvas.width / (window.devicePixelRatio || 1));
-            const h = sourceCanvas.clientHeight || (sourceCanvas.height / (window.devicePixelRatio || 1));
+            // Usa dimensões menores e proporcionais para garantir que as fontes (12px) não fiquem
+            // microscópicas quando o gráfico for redimensionado no LaTeX para caber na página.
+            let w = sourceCanvas.clientWidth || (sourceCanvas.width / (window.devicePixelRatio || 1));
+            let h = sourceCanvas.clientHeight || (sourceCanvas.height / (window.devicePixelRatio || 1));
+
+            const TARGET_WIDTH = 600;
+            if (w > TARGET_WIDTH) {
+                h = Math.round(h * (TARGET_WIDTH / w));
+                w = TARGET_WIDTH;
+            }
 
             const svgCtx = new SVGContext2D(w, h);
             const theme = getThemeColors();
@@ -1013,7 +1094,7 @@
             fakeCanvas.style.height = h + 'px';
             fakeCanvas.style.display = 'block';
             document.body.appendChild(fakeCanvas);
-            
+
             fakeCanvas.getContext = (type) => type === '2d' ? svgCtx : null;
             // IMPORTANTE: Chart.js checa se context.canvas === canvas!
             svgCtx.canvas = fakeCanvas;
@@ -1157,21 +1238,21 @@
             // Formato com '+' (ex: BASE+1D+TPS)
             { pattern: /^BASE\+1D\+TPS$/i, label: 'TRBA' },
             { pattern: /^CTR\+1D\+TPS$/i, label: 'CTRBA' },
-            { pattern: /^BASE\+2D\+TPS$/i, label: 'TRB2D' },
-            { pattern: /^CTR\+2D\+TPS$/i, label: 'CTRB2D' },
+            { pattern: /^BASE\+2D\+TPS$/i, label: 'TRB2A' },
+            { pattern: /^CTR\+2D\+TPS$/i, label: 'CTRB2A' },
             // Formato com espaço — qualquer ordem de TPS/1D/2D (ex: BASE TPS 1D, BASE 1D TPS)
             { pattern: /^BASE\b.*\bTPS\b.*\b1D\b/i, label: 'TRBA' },
             { pattern: /^BASE\b.*\b1D\b.*\bTPS\b/i, label: 'TRBA' },
             { pattern: /^CTR\b.*\bTPS\b.*\b1D\b/i, label: 'CTRBA' },
             { pattern: /^CTR\b.*\b1D\b.*\bTPS\b/i, label: 'CTRBA' },
-            { pattern: /^BASE\b.*\bTPS\b.*\b2D\b/i, label: 'TRB2D' },
-            { pattern: /^BASE\b.*\b2D\b.*\bTPS\b/i, label: 'TRB2D' },
-            { pattern: /^CTR\b.*\bTPS\b.*\b2D\b/i, label: 'CTRB2D' },
-            { pattern: /^CTR\b.*\b2D\b.*\bTPS\b/i, label: 'CTRB2D' },
+            { pattern: /^BASE\b.*\bTPS\b.*\b2D\b/i, label: 'TRB2A' },
+            { pattern: /^BASE\b.*\b2D\b.*\bTPS\b/i, label: 'TRB2A' },
+            { pattern: /^CTR\b.*\bTPS\b.*\b2D\b/i, label: 'CTRB2A' },
+            { pattern: /^CTR\b.*\b2D\b.*\bTPS\b/i, label: 'CTRB2A' },
         ];
 
         // Modelos permitidos (novos nomes)
-        const ALLOWED_MODELS = new Set(['TRBA', 'CTRBA', 'TRB2D', 'CTRB2D']);
+        const ALLOWED_MODELS = new Set(['TRBA', 'CTRBA', 'TRB2A', 'CTRB2A']);
 
         function normalizeModelLabel(label) {
             if (!label) return label;
@@ -1457,7 +1538,7 @@
                     const numCategories = 2; // UFPR and RodoSol
 
                     ctx.save();
-                    ctx.font = '600 13px Inter';
+                    ctx.font = '500 12px Inter';
                     ctx.textAlign = 'center';
 
                     for (let c = 0; c < numCategories; c++) {
@@ -1496,7 +1577,7 @@
 
                             // 1. Acurácia Absoluta (acima da barra)
                             ctx.textBaseline = 'bottom';
-                            ctx.font = '600 13px Inter';
+                            ctx.font = '500 12px Inter';
                             ctx.fillStyle = theme.tickColor;
                             ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
 
@@ -1505,7 +1586,7 @@
                             if (diff > 0) diffText = '+' + diffText;
 
                             ctx.textBaseline = 'top';
-                            ctx.font = '700 12px Inter';
+                            ctx.font = '600 11px Inter';
                             ctx.fillStyle = '#ffffff';
 
                             ctx.shadowColor = 'rgba(0,0,0,0.3)';
@@ -1707,7 +1788,7 @@
                     const numCategories = 2; // Car and Motorcycle
 
                     ctx.save();
-                    ctx.font = '600 13px Inter';
+                    ctx.font = '500 12px Inter';
                     ctx.textAlign = 'center';
 
                     for (let c = 0; c < numCategories; c++) {
@@ -1741,7 +1822,7 @@
 
                             // 1. Acurácia Absoluta (Acima da barra)
                             ctx.textBaseline = 'bottom';
-                            ctx.font = '600 13px Inter';
+                            ctx.font = '500 12px Inter';
                             ctx.fillStyle = theme.tickColor;
                             ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
 
@@ -1750,7 +1831,7 @@
                             if (diff > 0) diffText = '+' + diffText;
 
                             ctx.textBaseline = 'top';
-                            ctx.font = '700 12px Inter';
+                            ctx.font = '600 11px Inter';
                             ctx.fillStyle = '#ffffff';
 
                             ctx.shadowColor = 'rgba(0,0,0,0.3)';
@@ -2007,7 +2088,7 @@
                     }
 
                     ctx.save();
-                    ctx.font = '600 13px Inter';
+                    ctx.font = '500 12px Inter';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
 
@@ -2021,7 +2102,7 @@
                         diff = Math.round(diff * 100) / 100;
 
                         // 1. Acurácia Absoluta (Acima da barra)
-                        ctx.font = '600 13px Inter';
+                        ctx.font = '500 12px Inter';
                         ctx.fillStyle = theme.tickColor;
                         ctx.fillText(val.toFixed(2) + '%', bar.x, bar.y - 6);
 
@@ -2030,7 +2111,7 @@
                         if (diff > 0) diffText = '+' + diffText;
 
                         ctx.textBaseline = 'top';
-                        ctx.font = '700 12px Inter';
+                        ctx.font = '600 11px Inter';
                         ctx.fillStyle = '#ffffff';
 
                         // Sombra leve para garantir leitura em qualquer cor de barra
@@ -2342,7 +2423,7 @@
                     const numClasses = chart.data.labels.length;
 
                     ctx.save();
-                    ctx.font = '600 12px Inter';
+                    ctx.font = '600 11px Inter';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
 
@@ -2580,7 +2661,7 @@
                     }
 
                     ctx.save();
-                    ctx.font = '600 13px Inter';
+                    ctx.font = '500 12px Inter';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
 
