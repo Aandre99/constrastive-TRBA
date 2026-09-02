@@ -156,18 +156,17 @@ def _annotate_bar(
             cx, top - inset,
             "Ref",
             ha="center", va="top",
-            fontsize=fontsize_delta, color="white", style="italic", alpha=0.8,
+            fontsize=fontsize_delta, color="black", style="italic", alpha=0.8,
         )
         return
-    color = COLOR_GOOD if (delta > 0) == higher_is_better else COLOR_BAD
     txt = ax.text(
         cx, top - inset,
         delta_fmt.format(delta),
         ha="center", va="top",
-        fontsize=fontsize_delta, fontweight="bold", color=color,
+        fontsize=fontsize_delta, fontweight="bold", color="black",
     )
     # Adiciona um contorno branco
-    txt.set_path_effects([PathEffects.withStroke(linewidth=0.5, foreground='white')])
+    #txt.set_path_effects([PathEffects.withStroke(linewidth=0.5, foreground='white')])
 
 
 # ── Gráfico 1: Model Accuracy ────────────────────────────────────────────────
@@ -210,6 +209,95 @@ def plot_model_accuracy(
         fig.tight_layout()
         _save_fig(fig, output_dir, f"{dataset_name}_model_accuracy")
 
+
+
+# ── Gráfico 1b: Rodo/UFPR Split Accuracy ──────────────────────────────────────
+
+import csv
+
+def plot_rodo_ufpr_split_accuracy(
+    data: dict, output_dir: Path, dataset_name: str, metrics_path: Path
+):
+    """Gera uma figura contendo dois subplots de acurácia: rodosol-alpr e ufpr-alpr."""
+    if dataset_name != "rodo_ufpr":
+        return
+
+    models = ordered_models(data.get("models", []))
+    if not models:
+        return
+
+    results_dir = metrics_path.parent
+    rodosol_accs = []
+    ufpr_accs = []
+    
+    labels = [m["label"] for m in models]
+    colors = [MODEL_COLORS.get(lbl, "#999") for lbl in labels]
+    
+    for m in models:
+        run_id = m["run_id"]
+        csv_files = list(results_dir.glob(f"predictions_*{run_id[:8]}*.csv"))
+        if not csv_files:
+            print(f"  [WARN] Missing CSV for {m['label']} ({run_id})")
+            rodosol_accs.append(0)
+            ufpr_accs.append(0)
+            continue
+            
+        csv_path = csv_files[0]
+        rodo_correct = 0
+        rodo_total = 0
+        ufpr_correct = 0
+        ufpr_total = 0
+        
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                img = row["img"]
+                correct = (row["correct"] == "True")
+                if img.startswith("img_"):
+                    rodo_total += 1
+                    if correct: rodo_correct += 1
+                else:
+                    ufpr_total += 1
+                    if correct: ufpr_correct += 1
+                    
+        rodosol_accs.append((rodo_correct / rodo_total * 100) if rodo_total > 0 else 0)
+        ufpr_accs.append((ufpr_correct / ufpr_total * 100) if ufpr_total > 0 else 0)
+
+    with plt.style.context(["science", "no-latex", "grid"]):
+        fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+        x = np.arange(len(labels))
+        
+        # Subplot 1: rodosol-alpr
+        ax1 = axes[0]
+        bars1 = ax1.bar(x, rodosol_accs, color=colors, edgecolor="black", linewidth=0.5, width=0.6)
+        trba_acc_rodo = next((acc for lbl, acc in zip(labels, rodosol_accs) if lbl == "TRBA"), None)
+        for bar, lbl, acc in zip(bars1, labels, rodosol_accs):
+            ref = None if lbl == "TRBA" else trba_acc_rodo
+            _annotate_bar(ax1, bar, acc, ref, higher_is_better=True)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(labels, fontsize=8)
+        ax1.set_title("RodoSol-ALPR", fontsize=12)
+        ax1.set_ylabel("Accuracy (%)")
+        
+        # Subplot 2: ufpr-alpr
+        ax2 = axes[1]
+        bars2 = ax2.bar(x, ufpr_accs, color=colors, edgecolor="black", linewidth=0.5, width=0.6)
+        trba_acc_ufpr = next((acc for lbl, acc in zip(labels, ufpr_accs) if lbl == "TRBA"), None)
+        for bar, lbl, acc in zip(bars2, labels, ufpr_accs):
+            ref = None if lbl == "TRBA" else trba_acc_ufpr
+            _annotate_bar(ax2, bar, acc, ref, higher_is_better=True)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(labels, fontsize=8)
+        ax2.set_title("UFPR-ALPR", fontsize=12)
+        
+        all_accs = rodosol_accs + ufpr_accs
+        if all_accs:
+            y_min = max(0, min(all_accs) - 5)
+            axes[0].set_ylim(y_min, 101)
+            axes[0].yaxis.set_major_formatter(mticker.FormatStrFormatter("%.0f"))
+            
+        fig.tight_layout()
+        _save_fig(fig, output_dir, f"{dataset_name}_split_accuracy")
 
 # ── Gráfico 2: Errors per Class ──────────────────────────────────────────────
 
@@ -514,7 +602,7 @@ def process_dataset(
 
     if not data.get("models"):
         print("  [WARN] No allowed models found. Skipping.")
-        return
+        return None
 
     model_labels = [m["label"] for m in data["models"]]
     print(f"  Models:  {', '.join(model_labels)}")
@@ -524,7 +612,12 @@ def process_dataset(
     plot_errors_per_class(data, output_dir, dataset_name)
     plot_class_error_rate(data, output_dir, dataset_name)
     plot_vehicle_type_accuracy(data, output_dir, dataset_name)
+    plot_rodo_ufpr_split_accuracy(data, output_dir, dataset_name, metrics_path)
     plot_vehicle_type_cer(data, output_dir, dataset_name)
+    return data
+
+
+    return data
 
 
 def main():
@@ -568,11 +661,10 @@ def main():
         sys.exit(f"No metrics.json found in subdirectories of: {results_dir}")
 
     # Filtra datasets se especificado
-    if args.datasets:
-        selected = set(args.datasets)
-        all_datasets = [(name, path) for name, path in all_datasets if name in selected]
-        if not all_datasets:
-            sys.exit(f"None of the specified datasets found: {args.datasets}")
+    # Filtra datasets: Apenas rodo_ufpr
+    all_datasets = [(name, path) for name, path in all_datasets if name == "rodo_ufpr"]
+    if not all_datasets:
+        sys.exit("Dataset 'rodo_ufpr' not found in results directory.")
 
     print(f"Found {len(all_datasets)} dataset(s): {', '.join(n for n, _ in all_datasets)}")
 
