@@ -1,0 +1,37 @@
+{
+  "input": "results_5x4/bootstrap_predictions.csv",
+  "n_bootstrap": 10000,
+  "batch_size": 250,
+  "confidence_level": 0.95,
+  "random_seed": 20260926,
+  "seeds": [
+    1111,
+    2222,
+    3333,
+    4444,
+    5555
+  ],
+  "n_rows": 196000,
+  "n_plates_per_run": 9800,
+  "configs": [
+    "TRBA",
+    "CTRBA",
+    "TRB2A",
+    "CTRB2A"
+  ],
+  "bootstrap_method": {
+    "unit": "plate",
+    "replacement": true,
+    "paired_comparisons": true,
+    "ci_method": "percentile",
+    "accuracy": "mean(correct)",
+    "cer": "sum(edit_dist) / sum(gt_length)"
+  },
+  "factorial_effects": {
+    "contrastive_effect_1d": "CTRBA - TRBA",
+    "contrastive_effect_2d": "CTRB2A - TRB2A",
+    "attention_effect_no_contrastive": "TRB2A - TRBA",
+    "attention_effect_contrastive": "CTRB2A - CTRBA",
+    "interaction": "(CTRB2A - TRB2A) - (CTRBA - TRBA)"
+  }
+}
