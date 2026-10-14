@@ -180,6 +180,18 @@ def setup_opt_from_mlflow(opt, run_id: str) -> Tuple[object, mlflow.entities.Run
     return opt_copy, run
 
 
+def get_seed(run: mlflow.entities.Run) -> Optional[int]:
+    """Recupera a seed registrada nos parâmetros do MLflow."""
+    params = run.data.params
+    for key in ('manualSeed', 'seed'):
+        if key in params:
+            try:
+                return int(params[key])
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
 def get_model_label(run: mlflow.entities.Run) -> str:
     """Gera um rótulo legível para o modelo a partir dos parâmetros da run."""
     params = run.data.params
@@ -194,7 +206,13 @@ def get_model_label(run: mlflow.entities.Run) -> str:
     attn_type = params.get('attention_type', '1D')
     parts.append(attn_type)
 
-    return " + ".join(parts)
+    base_label = " + ".join(parts)
+
+    # Incluir seed para diferenciar repetições do mesmo experimento
+    seed = get_seed(run)
+    if seed is not None:
+        return f"{base_label} [seed={seed}]"
+    return base_label
 
 
 def evaluate_model(opt_copy, run_id: str, vehicle_mapping: Optional[Dict[str, str]] = None) -> Dict:
@@ -921,6 +939,8 @@ def parse_args():
                         help='Comprimento máximo do label predito.')
     parser.add_argument('--output_dir', type=str, default='evaluation_results',
                         help='Diretório de saída para plots e relatório.')
+    parser.add_argument('--PAD', action='store_true',
+                        help='Manter proporção com padding.')
     return parser.parse_args()
 
 

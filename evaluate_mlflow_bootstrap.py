@@ -194,7 +194,13 @@ def get_model_label(run: mlflow.entities.Run) -> str:
     attn_type = params.get('attention_type', '1D')
     parts.append(attn_type)
 
-    return " + ".join(parts)
+    base_label = " + ".join(parts)
+
+    # Incluir seed para diferenciar repetições do mesmo experimento
+    seed = get_seed(run)
+    if seed is not None:
+        return f"{base_label} [seed={seed}]"
+    return base_label
 
 
 def get_experiment_config(run: mlflow.entities.Run) -> str:

@@ -42,21 +42,21 @@ OUTPUT_DIR="${OUTPUT_DIR:-evaluation_results}"
 
 # Modelos Treinados em rodo
 
-#DEFAULT_RUN_IDS=(
-#    "c614e91c1d8a45ec84ba7fc6db996d2e" # CTR + TPS + 2D 
-#    "1bb18edff9ab4710af1aa20dd2163199" # BASE + TPS + 2D
-#    "54a3666a84b34c23a027e4a80ae7fb7e" # BASE + TPS + 1D
-#    "7b9c2190df97432e9099dedcd13185d9" # CTR + TPS + 1D
-#)
+DEFAULT_RUN_IDS=(
+    "c614e91c1d8a45ec84ba7fc6db996d2e" # CTR + TPS + 2D 
+    "1bb18edff9ab4710af1aa20dd2163199" # BASE + TPS + 2D
+    "54a3666a84b34c23a027e4a80ae7fb7e" # BASE + TPS + 1D
+    "7b9c2190df97432e9099dedcd13185d9" # CTR + TPS + 1D
+)
    
 # Modelos Treinados em ufpr
 
-DEFAULT_RUN_IDS=(
-    "bb029128e334469dabaefee474131cd1" # CTR + TPS + 1D 
-    "691231fe325d4c4ba1bb9eab8d24c343" # CTR + TPS + 2D 
-    "6d12dea976804d93b709455c468e4dae" # BASE + TPS + 1D
-    "9ab6c40e9b3b45b486d63ad6778ed34e" # CTR + TPS + 2D
-)
+#DEFAULT_RUN_IDS=(
+#    "bb029128e334469dabaefee474131cd1" # CTR + TPS + 1D 
+#    "691231fe325d4c4ba1bb9eab8d24c343" # CTR + TPS + 2D 
+#    "6d12dea976804d93b709455c468e4dae" # BASE + TPS + 1D
+#    "9ab6c40e9b3b45b486d63ad6778ed34e" # CTR + TPS + 2D
+#)
 
 # Resolução da lista de RUN_IDs
 if [ "$#" -gt 0 ]; then
@@ -84,7 +84,8 @@ CUDA_VISIBLE_DEVICES=$DEVICE python evaluate_mlflow.py \
     --mlflow_run_id "${RUN_IDS[@]}" \
     --dataset "$DATASET" \
     --mlflow_model "$MLFLOW_MODEL" \
-    --output_dir "$OUTPUT_DIR"
+    --output_dir "$OUTPUT_DIR" \
+    --PAD
 
 echo ""
 echo "========================================================================"
